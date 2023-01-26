@@ -134,8 +134,8 @@ fn eval_prepare<F: Fancy>(
     evaluator_inputs: &[F::Item],
     gates: &[Gate],
     gate_moduli: &[u16],
-) -> Result<Vec<Option<F::Item>>, F::Error> {
-    let mut cache: Vec<Option<F::Item>> = vec![None; gates.len()];
+) -> Result<Vec<F::Item>, F::Error> {
+    let mut cache: Vec<F::Item> = vec![F::Item::default(); gates.len()];
     let mut temp_blocks = vec![Block::default(); 2];
 
     eval_prepare_with_prealloc(
@@ -157,7 +157,7 @@ pub fn eval_prepare_with_prealloc<F: Fancy>(
     evaluator_inputs: &[F::Item],
     gates: &[Gate],
     gate_moduli: &[u16],
-    cache: &mut Vec<Option<F::Item>>,
+    cache: &mut Vec<F::Item>,
     temp_blocks: &mut Vec<Block>,
 ) -> Result<(), F::Error> {
     debug_assert_eq!(cache.len(), gates.len(), "cache is NOT the correct size!");
@@ -178,30 +178,30 @@ pub fn eval_prepare_with_prealloc<F: Fancy>(
             Gate::Add { xref, yref, out } => (
                 out,
                 f.add(
-                    cache[xref.ix]
-                        .as_ref()
+                    cache
+                        .get(xref.ix)
                         .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                    cache[yref.ix]
-                        .as_ref()
+                    cache
+                        .get(yref.ix)
                         .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                 )?,
             ),
             Gate::Sub { xref, yref, out } => (
                 out,
                 f.sub(
-                    cache[xref.ix]
-                        .as_ref()
+                    cache
+                        .get(xref.ix)
                         .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                    cache[yref.ix]
-                        .as_ref()
+                    cache
+                        .get(yref.ix)
                         .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                 )?,
             ),
             Gate::Cmul { xref, c, out } => (
                 out,
                 f.cmul(
-                    cache[xref.ix]
-                        .as_ref()
+                    cache
+                        .get(xref.ix)
                         .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                     c,
                 )?,
@@ -211,8 +211,8 @@ pub fn eval_prepare_with_prealloc<F: Fancy>(
             } => (
                 out,
                 f.proj(
-                    cache[xref.ix]
-                        .as_ref()
+                    cache
+                        .get(xref.ix)
                         .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                     q,
                     Some(tt.to_vec()),
@@ -223,23 +223,23 @@ pub fn eval_prepare_with_prealloc<F: Fancy>(
             } => (
                 out,
                 f.mul(
-                    cache[xref.ix]
-                        .as_ref()
+                    cache
+                        .get(xref.ix)
                         .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                    cache[yref.ix]
-                        .as_ref()
+                    cache
+                        .get(yref.ix)
                         .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                 )?,
             ),
         };
-        cache[zref_.unwrap_or(i)] = Some(val);
+        cache[zref_.unwrap_or(i)] = val;
     }
 
     Ok(())
 }
 
 fn eval_eval<F: Fancy>(
-    cache: &[Option<F::Item>],
+    cache: &[F::Item],
     f: &mut F,
     output_refs: &[CircuitRef],
 ) -> Result<Option<Vec<u16>>, F::Error> {
@@ -258,7 +258,7 @@ fn eval_eval<F: Fancy>(
 }
 
 pub fn eval_eval_with_prealloc<F: Fancy, H: BuildHasher>(
-    cache: &[Option<F::Item>],
+    cache: &[F::Item],
     f: &mut F,
     output_refs: &[CircuitRef],
     outputs: &mut Vec<Option<u16>>,
@@ -268,8 +268,8 @@ pub fn eval_eval_with_prealloc<F: Fancy, H: BuildHasher>(
     debug_assert_eq!(output_refs.len(), outputs.len(), "outputs NOT init!");
     for (i, r) in output_refs.iter().enumerate() {
         // TODO(interstellar) debug_assert_eq!(cache[i], Some(r), "bad index!");
-        let r = cache[r.ix]
-            .as_ref()
+        let r = cache
+            .get(r.ix)
             .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?;
         let out = f.output(r)?;
         outputs[i] = out;
@@ -319,7 +319,7 @@ impl Circuit {
         garbler_inputs: &[F::Item],
         evaluator_inputs: &[F::Item],
         outputs: &mut Vec<Option<u16>>,
-        cache: &mut Vec<Option<F::Item>>,
+        cache: &mut Vec<F::Item>,
         temp_blocks: &mut Vec<Block>,
         hashes_cache: &mut HashMap<(F::Item, usize, u16), Block, H>,
     ) -> Result<(), F::Error> {

@@ -19,9 +19,12 @@ use crate::{
 };
 use itertools::Itertools;
 use scuttlebutt::{channel::GetBlockByIndex, AbstractChannel, AesRng, Block, Channel};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::BuildHasherDefault;
-use std::{collections::HashMap, convert::TryInto, rc::Rc};
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    convert::TryInto,
+    hash::BuildHasherDefault,
+    rc::Rc,
+};
 
 #[cfg(all(not(feature = "std"), feature = "sgx"))]
 use sgx_tstd::vec;
@@ -44,7 +47,7 @@ pub struct GarbledCircuit {
 
 pub struct EvalCache {
     /// Only needed for "eval_with_prealloc"
-    pub(crate) cache: Vec<Option<Wire>>,
+    pub(crate) cache: Vec<Wire>,
     pub(crate) temp_blocks: Vec<Block>,
     // default hasher:
     // ---- tests::bench_garble_display_message_640x360_2digits_42 stdout ----
@@ -142,7 +145,7 @@ impl GarbledCircuit {
     // TODO(interstellar) remove?
     pub fn init_cache(&self) -> EvalCache {
         EvalCache {
-            cache: vec![None; self.circuit.gates.len()],
+            cache: vec![Wire::default(); self.circuit.gates.len()],
             temp_blocks: vec![Block::default(); 2],
             // TODO(interstellar)!!! try different hashers; the default "provide resistance against HashDoS attacks"
             //  but this MAY not be needed
@@ -212,8 +215,7 @@ pub mod vectorize {
     use sgx_tstd as std;
 
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use std::iter::FromIterator;
-    use std::vec::Vec;
+    use std::{iter::FromIterator, vec::Vec};
 
     pub fn serialize<'a, T, K, V, S>(target: T, ser: S) -> Result<S::Ok, S::Error>
     where
