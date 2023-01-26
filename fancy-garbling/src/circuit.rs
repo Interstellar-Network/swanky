@@ -7,25 +7,16 @@
 //! DSL for creating circuits compatible with fancy-garbling in the old-fashioned way,
 //! where you create a circuit for a computation then garble it.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::{
     dummy::{Dummy, DummyVal},
     errors::{CircuitBuilderError, DummyError, FancyError},
     fancy::{BinaryBundle, CrtBundle, Fancy, FancyInput, HasModulus},
 };
+use alloc::{vec, vec::Vec};
 use core::hash::BuildHasher;
 use itertools::Itertools;
 use scuttlebutt::Block;
-use std::collections::HashMap;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::println;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
+use std::{collections::HashMap, println};
 
 /// The index and modulus of a gate in a circuit.
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
@@ -782,6 +773,7 @@ mod bundle {
     };
     use itertools::Itertools;
     use rand::thread_rng;
+    use std::println;
 
     #[test] // bundle input and output {{{
     fn test_bundle_input_output() {

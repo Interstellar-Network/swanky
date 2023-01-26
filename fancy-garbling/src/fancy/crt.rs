@@ -12,15 +12,9 @@ use crate::{
     fancy::bundle::{Bundle, BundleGadgets},
     util,
 };
+use alloc::{string::ToString, vec, vec::Vec};
 use core::ops::Deref;
 use itertools::Itertools;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::string::ToString;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 /// Bundle which is explicitly CRT-representation.
 #[derive(Clone)]

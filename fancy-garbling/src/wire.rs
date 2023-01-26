@@ -6,17 +6,10 @@
 
 //! Low-level operations on wire-labels, the basic building block of garbled circuits.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::{fancy::HasModulus, util};
+use alloc::{vec, vec::Vec};
 use rand::{CryptoRng, Rng, RngCore};
 use scuttlebutt::{AesHash, Block};
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 mod npaths_tab;
 
@@ -57,7 +50,7 @@ pub enum Wire {
     },
 }
 
-impl std::default::Default for Wire {
+impl Default for Wire {
     fn default() -> Self {
         Wire::Mod2 {
             val: Block::default(),
@@ -352,7 +345,7 @@ impl Wire {
                 2 => {
                     // Multiplication by two is the same as negation in `mod-3`,
                     // which just involves swapping `lsb` and `msb`.
-                    std::mem::swap(lsb, msb);
+                    core::mem::swap(lsb, msb);
                 }
                 c => {
                     self.cmul_eq(c % 3);
@@ -385,7 +378,7 @@ impl Wire {
             }
             Wire::Mod3 { lsb, msb } => {
                 // Negation just involves swapping `lsb` and `msb`.
-                std::mem::swap(lsb, msb);
+                core::mem::swap(lsb, msb);
             }
             Wire::ModN { q, ds } => {
                 ds.iter_mut().for_each(|d| {

@@ -21,6 +21,15 @@
 #![cfg_attr(feature = "nightly", feature(stdsimd))]
 // #![cfg_attr(feature = "nightly", deny(missing_docs))]
 
+extern crate alloc;
+
+#[cfg(all(not(feature = "std"), feature = "sgx"))]
+extern crate sgx_tstd as std;
+
+#[cfg(test)]
+#[macro_use]
+extern crate std;
+
 pub mod circuit;
 pub mod classic;
 pub mod depth_informer;

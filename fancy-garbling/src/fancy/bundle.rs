@@ -4,20 +4,13 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::{
     errors::FancyError,
     fancy::{Fancy, HasModulus},
 };
+use alloc::{vec, vec::Vec};
 use itertools::Itertools;
 use std::ops::Index;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 /// A collection of wires, useful for the garbled gadgets defined by `BundleGadgets`.
 #[derive(Clone)]

@@ -9,17 +9,10 @@
 //! An implementer must be able to create inputs, constants, do modular arithmetic, and
 //! create projections.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::errors::FancyError;
-use core::hash::BuildHasher;
+use alloc::vec::Vec;
+use core::fmt::{Debug, Display};
 use itertools::Itertools;
-use scuttlebutt::Block;
-use std::collections::HashMap;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 mod binary;
 mod bundle;
@@ -47,7 +40,7 @@ pub trait Fancy {
     type Item: Clone + HasModulus + Default;
 
     /// Errors which may be thrown by the users of Fancy.
-    type Error: std::fmt::Debug + std::fmt::Display + std::convert::From<FancyError>;
+    type Error: Debug + Display + From<FancyError>;
 
     /// Create a constant `x` with modulus `q`.
     fn constant(&mut self, x: u16, q: u16) -> Result<Self::Item, Self::Error>;

@@ -4,26 +4,16 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::{
     errors::{FancyError, GarblerError},
     fancy::{BinaryBundle, CrtBundle, Fancy, FancyReveal, HasModulus},
     util::{output_tweak, tweak, tweak2, RngExt},
     wire::Wire,
 };
-use core::hash::BuildHasher;
+use alloc::{boxed::Box, vec, vec::Vec};
 use rand::{CryptoRng, RngCore};
 use scuttlebutt::{AbstractChannel, AesHash, Block};
 use std::collections::HashMap;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::boxed::Box;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 /// Streams garbled circuit ciphertexts through a callback.
 pub struct Garbler<C, RNG> {

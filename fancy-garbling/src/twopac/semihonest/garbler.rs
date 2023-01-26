@@ -4,18 +4,12 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::{errors::TwopacError, Fancy, FancyInput, FancyReveal, Garbler as Gb, Wire};
-use core::hash::BuildHasher;
+use alloc::vec::Vec;
+use core::ops::{Deref, DerefMut};
 use ocelot::ot::Sender as OtSender;
 use rand::{CryptoRng, Rng, SeedableRng};
 use scuttlebutt::{AbstractChannel, Block, SemiHonest};
-use std::collections::HashMap;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 /// Semi-honest garbler.
 pub struct Garbler<C, RNG, OT> {
@@ -24,14 +18,14 @@ pub struct Garbler<C, RNG, OT> {
     rng: RNG,
 }
 
-impl<C, OT, RNG> std::ops::Deref for Garbler<C, RNG, OT> {
+impl<C, OT, RNG> Deref for Garbler<C, RNG, OT> {
     type Target = Gb<C, RNG>;
     fn deref(&self) -> &Self::Target {
         &self.garbler
     }
 }
 
-impl<C, OT, RNG> std::ops::DerefMut for Garbler<C, RNG, OT> {
+impl<C, OT, RNG> DerefMut for Garbler<C, RNG, OT> {
     fn deref_mut(&mut self) -> &mut Gb<C, RNG> {
         &mut self.garbler
     }

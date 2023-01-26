@@ -4,22 +4,14 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
-use std::collections::HashMap;
-
 use crate::{
     errors::{EvaluatorError, FancyError},
     fancy::{Fancy, FancyReveal, HasModulus},
     util::{output_tweak, tweak, tweak2},
     wire::Wire,
 };
-use core::hash::BuildHasher;
-use scuttlebutt::{AbstractChannel, AesHash, Block};
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
+use alloc::vec::Vec;
+use scuttlebutt::{AbstractChannel, AesHash};
 
 /// Streaming evaluator using a callback to receive ciphertexts as needed.
 ///

@@ -11,6 +11,7 @@ use crate::{
     circuit::{Circuit, CircuitRef, Gate},
     errors::CircuitParserError as Error,
 };
+use alloc::string::{String, ToString};
 use regex::{Captures, Regex};
 use std::{
     fs::File,
@@ -174,6 +175,10 @@ impl Circuit {
 #[cfg(test)]
 mod tests {
     use crate::{circuit::Circuit, classic::garble};
+    use alloc::{
+        string::{String, ToString},
+        vec,
+    };
 
     #[test]
     fn test_parser() {

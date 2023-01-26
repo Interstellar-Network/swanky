@@ -6,18 +6,8 @@
 
 //! Errors that may be output by this library.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
-use scuttlebutt::Block;
-use std::fmt::{self, Display, Formatter};
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::string::String;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::string::ToString;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
+use alloc::string::{String, ToString};
+use core::fmt::{self, Display, Formatter};
 
 /// Errors that may occur when using the `Fancy` trait. These errors are
 /// API-usage errors, such as trying to add two `Items` with different moduli.
@@ -282,6 +272,7 @@ impl Display for CircuitParserError {
     }
 }
 
+#[cfg(feature = "parser")]
 impl From<std::io::Error> for CircuitParserError {
     fn from(e: std::io::Error) -> CircuitParserError {
         CircuitParserError::IoError(e)
@@ -295,8 +286,8 @@ impl From<regex::Error> for CircuitParserError {
     }
 }
 
-impl From<std::num::ParseIntError> for CircuitParserError {
-    fn from(_: std::num::ParseIntError) -> CircuitParserError {
+impl From<core::num::ParseIntError> for CircuitParserError {
+    fn from(_: core::num::ParseIntError) -> CircuitParserError {
         CircuitParserError::ParseIntError
     }
 }
@@ -351,8 +342,8 @@ impl From<FancyError> for TwopacError {
     }
 }
 
-impl std::fmt::Display for TwopacError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for TwopacError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             TwopacError::IoError(e) => write!(f, "IO error: {}", e),
             TwopacError::OtError(e) => write!(f, "oblivious transfer error: {}", e),

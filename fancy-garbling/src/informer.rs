@@ -6,18 +6,9 @@
 
 //! `Informer` runs a fancy computation and learns information from it.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::fancy::{Fancy, FancyInput, FancyReveal, HasModulus};
-use core::hash::BuildHasher;
-use scuttlebutt::Block;
+use alloc::{vec, vec::Vec};
 use std::collections::{HashMap, HashSet};
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 /// Implements `Fancy`. Used to learn information about a `Fancy` computation in
 /// a lightweight way.
@@ -110,7 +101,7 @@ impl InformerStats {
     }
 }
 
-impl std::fmt::Display for InformerStats {
+impl core::fmt::Display for InformerStats {
     /// Print information about the fancy computation.
     ///
     /// For example, below is the output when run on `circuits/AES-non-expanded.txt`:
@@ -129,7 +120,7 @@ impl std::fmt::Display for InformerStats {
     ///   ciphertexts:                   13600 // comms cost: 1.66 Mb (1700.00 Kb)
     ///   total comms cost:            1.75 Mb // 1700.00 Kb
     /// ```
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let mut total = 0.0;
         writeln!(f, "computation info:")?;
         let comm = self.num_garbler_inputs() as f64 * 128.0 / 1000.0;

@@ -14,17 +14,11 @@ pub use garbler::Garbler;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        circuit::Circuit,
-        dummy::Dummy,
-        util::RngExt,
-        CrtBundle,
-        CrtGadgets,
-        Fancy,
-        FancyInput,
-    };
+    use crate::{CrtBundle, CrtGadgets, Fancy};
+    use alloc::vec::Vec;
+    #[cfg(feature = "ot")]
     use itertools::Itertools;
+    #[cfg(feature = "ot")]
     use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel};
 
     fn addition<F: Fancy>(f: &mut F, a: &F::Item, b: &F::Item) -> Result<Option<u16>, F::Error> {

@@ -7,9 +7,6 @@
 //! Provides objects and functions for statically garbling and evaluating a
 //! circuit without streaming.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::{
     circuit::Circuit,
     errors::{EvaluatorError, GarblerError},
@@ -17,19 +14,14 @@ use crate::{
     garble::{Evaluator, Garbler},
     wire::Wire,
 };
+use alloc::{vec, vec::Vec};
 use itertools::Itertools;
-use scuttlebutt::{channel::GetBlockByIndex, AbstractChannel, AesRng, Block, Channel};
+use scuttlebutt::{channel::GetBlockByIndex, AesRng, Block, Channel};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     convert::TryInto,
     hash::BuildHasherDefault,
-    rc::Rc,
 };
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 type MyBuildHasher = BuildHasherDefault<DefaultHasher>;
 
@@ -211,11 +203,9 @@ pub fn garble(c: Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
 /// NOTE: this thread points to https://crates.io/crates/vectorize
 /// but unfortunately this crate depends on full "serde", which means it fails under no_std/sgx...
 pub mod vectorize {
-    #[cfg(all(not(feature = "std"), feature = "sgx"))]
-    use sgx_tstd as std;
-
+    use alloc::vec::Vec;
+    use core::iter::FromIterator;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use std::{iter::FromIterator, vec::Vec};
 
     pub fn serialize<'a, T, K, V, S>(target: T, ser: S) -> Result<S::Ok, S::Error>
     where

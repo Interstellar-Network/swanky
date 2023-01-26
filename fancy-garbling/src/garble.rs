@@ -22,6 +22,7 @@ mod nonstreaming {
         fancy::{Bundle, BundleGadgets, Fancy},
         util::{self, RngExt},
     };
+    use alloc::{vec, vec::Vec};
     use itertools::Itertools;
     use rand::{thread_rng, SeedableRng};
     use scuttlebutt::{AesRng, Block};
@@ -451,6 +452,7 @@ mod complex {
         FancyInput,
         Garbler,
     };
+    use alloc::vec::Vec;
     use itertools::Itertools;
     use rand::thread_rng;
     use scuttlebutt::{unix_channel_pair, AesRng};

@@ -6,10 +6,7 @@
 
 #![allow(clippy::unreadable_literal)]
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 use crate::util;
 
