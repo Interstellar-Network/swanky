@@ -7,21 +7,13 @@
 //! Implementation of an **entirely insecure** oblivious transfer protocol for
 //! testing purposes.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::{
     errors::Error,
     ot::{Receiver as OtReceiver, Sender as OtSender},
 };
+use alloc::vec::Vec;
 use rand::{CryptoRng, Rng};
 use scuttlebutt::{AbstractChannel, Block};
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::string::String;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 /// Oblivious transfer sender.
 pub struct Sender {}
@@ -58,8 +50,8 @@ impl OtSender for Sender {
     }
 }
 
-impl std::fmt::Display for Sender {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Sender {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Dummy Sender")
     }
 }
@@ -93,8 +85,8 @@ impl OtReceiver for Receiver {
     }
 }
 
-impl std::fmt::Display for Receiver {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Receiver {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Dummy Receiver")
     }
 }

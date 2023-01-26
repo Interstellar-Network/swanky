@@ -6,14 +6,11 @@
 
 //! Defines a block as a 128-bit value, and implements block-related functions.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 #[cfg(feature = "curve25519")]
 use crate::Aes256;
+use core::hash::{Hash, Hasher};
 #[cfg(feature = "curve25519")]
 use curve25519_dalek::ristretto::RistrettoPoint;
-use std::hash::{Hash, Hasher};
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
@@ -159,13 +156,13 @@ impl PartialEq for Block {
 impl Eq for Block {}
 
 impl Ord for Block {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         u128::from(*self).cmp(&u128::from(*other))
     }
 }
 
 impl PartialOrd for Block {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(u128::from(*self).cmp(&u128::from(*other)))
     }
 }
@@ -185,7 +182,7 @@ impl AsMut<[u8]> for Block {
 }
 
 #[cfg(target_arch = "x86_64")]
-impl std::ops::BitAnd for Block {
+impl core::ops::BitAnd for Block {
     type Output = Block;
     #[inline]
     fn bitand(self, rhs: Self) -> Self {
@@ -194,7 +191,7 @@ impl std::ops::BitAnd for Block {
 }
 
 #[cfg(target_arch = "x86_64")]
-impl std::ops::BitAndAssign for Block {
+impl core::ops::BitAndAssign for Block {
     #[inline]
     fn bitand_assign(&mut self, rhs: Self) {
         unsafe { self.0 = _mm_and_si128(self.0, rhs.0) }
@@ -202,7 +199,7 @@ impl std::ops::BitAndAssign for Block {
 }
 
 #[cfg(target_arch = "x86_64")]
-impl std::ops::BitOr for Block {
+impl core::ops::BitOr for Block {
     type Output = Block;
     #[inline]
     fn bitor(self, rhs: Self) -> Self {
@@ -211,14 +208,14 @@ impl std::ops::BitOr for Block {
 }
 
 #[cfg(target_arch = "x86_64")]
-impl std::ops::BitOrAssign for Block {
+impl core::ops::BitOrAssign for Block {
     #[inline]
     fn bitor_assign(&mut self, rhs: Self) {
         unsafe { self.0 = _mm_or_si128(self.0, rhs.0) }
     }
 }
 
-impl std::ops::BitXor for Block {
+impl core::ops::BitXor for Block {
     type Output = Block;
     #[inline]
     fn bitxor(self, rhs: Block) -> Block {
@@ -232,7 +229,7 @@ impl std::ops::BitXor for Block {
 }
 
 #[cfg(target_arch = "x86_64")]
-impl std::ops::BitXorAssign for Block {
+impl core::ops::BitXorAssign for Block {
     #[inline]
     fn bitxor_assign(&mut self, rhs: Self) {
         unsafe { self.0 = _mm_xor_si128(self.0, rhs.0) }
@@ -240,15 +237,15 @@ impl std::ops::BitXorAssign for Block {
 }
 
 #[cfg(not(target_arch = "x86_64"))]
-impl std::ops::BitXorAssign for Block {
+impl core::ops::BitXorAssign for Block {
     #[inline]
     fn bitxor_assign(&mut self, rhs: Self) {
         self.0 = self.0 ^ rhs.0;
     }
 }
 
-impl std::fmt::Debug for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Debug for Block {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let block: [u8; 16] = (*self).into();
         for byte in block.iter() {
             write!(f, "{:02X}", byte)?;
@@ -257,8 +254,8 @@ impl std::fmt::Debug for Block {
     }
 }
 
-impl std::fmt::Display for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Block {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let block: [u8; 16] = (*self).into();
         for byte in block.iter() {
             write!(f, "{:02X}", byte)?;
@@ -284,7 +281,7 @@ impl From<&Block> for u128 {
 impl From<u128> for Block {
     #[inline]
     fn from(m: u128) -> Self {
-        unsafe { std::mem::transmute(m) }
+        unsafe { core::mem::transmute(m) }
         // XXX: the below doesn't work due to pointer-alignment issues.
         // unsafe { *(&m as *const _ as *const Block) }
     }
@@ -316,7 +313,7 @@ impl From<Block> for [u8; 16] {
 impl From<[u8; 16]> for Block {
     #[inline]
     fn from(m: [u8; 16]) -> Self {
-        unsafe { std::mem::transmute(m) }
+        unsafe { core::mem::transmute(m) }
         // XXX: the below doesn't work due to pointer-alignment issues.
         // unsafe { *(&m as *const _ as *const Block) }
     }
@@ -325,7 +322,7 @@ impl From<[u8; 16]> for Block {
 impl From<[u16; 8]> for Block {
     #[inline]
     fn from(m: [u16; 8]) -> Self {
-        unsafe { std::mem::transmute(m) }
+        unsafe { core::mem::transmute(m) }
     }
 }
 

@@ -13,11 +13,9 @@ pub mod kmprt;
 mod prc;
 
 use crate::errors::Error;
+use alloc::vec::Vec;
 use rand::{CryptoRng, Rng};
 use scuttlebutt::AbstractChannel;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 /// KKRT oblivious PRF sender using ALSZ OT extension with Chou-Orlandi as the base OT.
 #[cfg(feature = "cointoss")]

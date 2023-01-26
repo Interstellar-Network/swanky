@@ -6,17 +6,15 @@
 
 //! Fixed-key AES random number generator.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 use crate::{Aes128, Block};
 use rand::Rng;
 use rand_chacha::{rand_core::SeedableRng, ChaChaRng};
-use rand_core::block::BlockRng;
-use rand_core::block::BlockRngCore;
-use rand_core::CryptoRng;
-use rand_core::Error;
-use rand_core::RngCore;
+use rand_core::{
+    block::{BlockRng, BlockRngCore},
+    CryptoRng,
+    Error,
+    RngCore,
+};
 
 /// Implementation of a random number generator based on fixed-key AES.
 ///
@@ -94,8 +92,8 @@ pub struct AesRngCore {
     state: u128,
 }
 
-impl std::fmt::Debug for AesRngCore {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Debug for AesRngCore {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "AesRngCore {{}}")
     }
 }
@@ -111,7 +109,7 @@ impl BlockRngCore for AesRngCore {
     fn generate(&mut self, results: &mut Self::Results) {
         // We can't just cast this because the alignment of [u32; 32] may not
         // match that of [Block; 8].
-        let mut ms: [Block; 8] = unsafe { std::mem::transmute(*results) };
+        let mut ms: [Block; 8] = unsafe { core::mem::transmute(*results) };
         ms[0] = Block::from(self.state);
         self.state += 1;
         ms[1] = Block::from(self.state);

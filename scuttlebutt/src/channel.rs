@@ -4,9 +4,6 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
 #[cfg(feature = "hash_channel")]
 mod hash_channel;
 #[cfg(feature = "sync_channel")]
@@ -27,18 +24,11 @@ pub use track_channel::TrackChannel;
 pub use unix_channel::{track_unix_channel_pair, unix_channel_pair, TrackUnixChannel, UnixChannel};
 
 use crate::{Block, Block512};
+use alloc::{rc::Rc, vec, vec::Vec};
 use core::cell::RefCell;
 #[cfg(feature = "curve25519")]
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
-use std::{
-    io::{Read, Result, Write},
-    rc::Rc,
-};
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec;
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
+use std::io::{Read, Result, Write};
 
 /// A trait for managing I/O. `AbstractChannel`s are clonable, and provide basic
 /// read/write capabilities for both common and scuttlebutt-specific types.

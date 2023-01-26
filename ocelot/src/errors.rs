@@ -4,11 +4,7 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::string::String;
+use alloc::string::String;
 
 /// Errors produced by `ocelot`.
 #[derive(Debug)]
@@ -37,8 +33,8 @@ impl From<scuttlebutt::cointoss::Error> for Error {
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             Error::InvalidInputLength => "invalid input length".fmt(f),
             Error::IoError(e) => write!(f, "IO error: {}", e),

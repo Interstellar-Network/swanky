@@ -29,11 +29,9 @@ pub mod kos_delta;
 pub mod naor_pinkas;
 
 use crate::errors::Error;
+use alloc::vec::Vec;
 use rand::{CryptoRng, Rng};
 use scuttlebutt::AbstractChannel;
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd::vec::Vec;
 
 /// Instantiation of the Chou-Orlandi OT sender.
 #[cfg(feature = "ot")]

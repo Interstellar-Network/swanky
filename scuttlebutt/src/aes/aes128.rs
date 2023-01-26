@@ -27,14 +27,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use sgx_tstd as std;
-
-use std::convert::TryInto;
+use core::convert::TryInto;
 
 use crate::Block;
-use aes::cipher::{generic_array::typenum, generic_array::GenericArray, BlockEncrypt, KeyInit};
-use aes::Aes128 as AesAes128;
+use aes::{
+    cipher::{
+        generic_array::{typenum, GenericArray},
+        BlockEncrypt,
+        KeyInit,
+    },
+    Aes128 as AesAes128,
+};
 
 /// AES-128, encryption only.
 #[derive(Clone)]
