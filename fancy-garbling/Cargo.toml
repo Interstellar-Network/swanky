@@ -22,6 +22,7 @@ serde1 = ["serde", "scuttlebutt/serde1", "serde_json"]
 parser = ["regex"]
 sgx = ["scuttlebutt/sgx", "ocelot/sgx", "sgx_tstd", "serde_json/alloc"]
 std = ["scuttlebutt/std", "ocelot/std", "serde_json/std"]
+parallel-eval = ["rayon"]
 
 [dependencies]
 base_conversion = { path = "base_conversion" }
@@ -36,6 +37,8 @@ serde_json = { version = "1", default-features = false, optional = true }
 # # TODO(interstellar) serde_with: features = ["alloc"]
 # serde_with = { version = "2.1.0", default-features = false, features = ["alloc", "macros"] }
 sgx_tstd = { branch = "master", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
+
+rayon = { optional = true, version = "1.6" }
 
 [dev-dependencies]
 criterion = "0.3.4"

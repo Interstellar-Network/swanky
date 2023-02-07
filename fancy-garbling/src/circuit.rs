@@ -15,6 +15,8 @@ use crate::{
 use alloc::{vec, vec::Vec};
 use core::hash::BuildHasher;
 use itertools::Itertools;
+#[cfg(feature = "parallel-eval")]
+use rayon::prelude::*;
 use scuttlebutt::Block;
 use std::{collections::HashMap, println};
 
@@ -269,6 +271,43 @@ pub fn eval_eval_with_prealloc<F: Fancy, H: BuildHasher>(
     Ok(())
 }
 
+#[cfg(not(feature = "parallel-eval"))]
+pub fn eval_eval_with_prealloc_unsafe<F: Fancy, H: BuildHasher>(
+    cache: &[F::Item],
+    f: &mut F,
+    output_refs: &[CircuitRef],
+    outputs: &mut Vec<u8>,
+    temp_blocks: &mut Vec<Block>,
+    hashes_cache: &mut HashMap<(F::Item, usize, u16), Block, H>,
+) -> Result<(), F::Error> {
+    for (i, r) in output_refs.iter().enumerate() {
+        let r = unsafe { cache.get(r.ix).unwrap_unchecked() };
+        outputs[i] = unsafe { f.output(r).unwrap_unchecked().unwrap_unchecked() as u8 };
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "parallel-eval")]
+pub fn eval_eval_with_prealloc_unsafe<F: Fancy + Send + Sync, H: BuildHasher>(
+    cache: &[F::Item],
+    f: &mut F,
+    output_refs: &[CircuitRef],
+    outputs: &mut Vec<u8>,
+    temp_blocks: &mut Vec<Block>,
+    hashes_cache: &mut HashMap<(F::Item, usize, u16), Block, H>,
+) -> Result<(), F::Error> {
+    todo!("TODO? but it requires Fancy and/or F::Item to be Send+Sync");
+    // TODO loop on "outputs" with par_iter_mut instead?
+    output_refs.par_iter().enumerate().map(|(i, r)| {
+        // TODO(interstellar) debug_assert_eq!(cache[i], Some(r), "bad index!");
+        let r = unsafe { cache.get(r.ix).unwrap_unchecked() };
+        outputs[i] = unsafe { f.output(r).unwrap_unchecked().unwrap_unchecked() as u8 };
+    });
+
+    Ok(())
+}
+
 impl Circuit {
     /// Make a new `Circuit` object.
     pub fn new(ngates: Option<usize>) -> Circuit {
@@ -325,6 +364,38 @@ impl Circuit {
         )?;
 
         eval_eval_with_prealloc(
+            cache,
+            f,
+            &self.output_refs,
+            outputs,
+            temp_blocks,
+            hashes_cache,
+        )
+    }
+
+    /// fn eval: version with preallocated outputs
+    /// This is the client-side use case, where we call eval() inside a render loop
+    pub fn eval_with_prealloc_unsafe<F: Fancy + Send + Sync, H: BuildHasher>(
+        &self,
+        f: &mut F,
+        garbler_inputs: &[F::Item],
+        evaluator_inputs: &[F::Item],
+        outputs: &mut Vec<u8>,
+        cache: &mut Vec<F::Item>,
+        temp_blocks: &mut Vec<Block>,
+        hashes_cache: &mut HashMap<(F::Item, usize, u16), Block, H>,
+    ) -> Result<(), F::Error> {
+        eval_prepare_with_prealloc(
+            f,
+            garbler_inputs,
+            evaluator_inputs,
+            &self.gates,
+            &self.gate_moduli,
+            cache,
+            temp_blocks,
+        )?;
+
+        eval_eval_with_prealloc_unsafe(
             cache,
             f,
             &self.output_refs,

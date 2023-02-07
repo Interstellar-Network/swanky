@@ -37,7 +37,7 @@ pub struct FancyEvalCache {}
 /// DSL for the basic computations supported by `fancy-garbling`.
 pub trait Fancy {
     /// The underlying wire datatype created by an object implementing `Fancy`.
-    type Item: Clone + HasModulus + Default;
+    type Item: Clone + HasModulus + Default + Send + Sync;
 
     /// Errors which may be thrown by the users of Fancy.
     type Error: Debug + Display + From<FancyError>;

@@ -134,6 +134,50 @@ impl GarbledCircuit {
         Ok(())
     }
 
+    pub fn eval_with_prealloc_unsafe(
+        &self,
+        eval_cache: &mut EvalCache,
+        garbler_inputs: &[Wire],
+        evaluator_inputs: &[Wire],
+        outputs: &mut Vec<u8>,
+    ) -> Result<(), EvaluatorError> {
+        let reader = GarbledReader::new(&self.blocks);
+        let channel = Channel::new(reader, GarbledWriter::new(None));
+
+        let mut evaluator = Evaluator::new(channel);
+
+        self.circuit.eval_with_prealloc_unsafe(
+            &mut evaluator,
+            &garbler_inputs,
+            &evaluator_inputs,
+            outputs,
+            // TODO!!! expect("cache not init! MUST call init_cache()")
+            &mut eval_cache.cache,
+            &mut eval_cache.temp_blocks,
+            &mut eval_cache.hashes_cache,
+        )?;
+
+        // eval_prepare_with_prealloc(
+        //     &mut evaluator,
+        //     garbler_inputs,
+        //     evaluator_inputs,
+        //     &self.circuit.gates,
+        //     &self.circuit.gate_moduli,
+        //     &mut self.cache,
+        // )?;
+
+        // eval_eval_with_prealloc(
+        //     &mut self.cache,
+        //     &mut evaluator,
+        //     &self.circuit.output_refs,
+        //     outputs,
+        //     &mut self.temp_blocks,
+        //     &mut self.hashes_cache,
+        // )?;
+
+        Ok(())
+    }
+
     // TODO(interstellar) remove?
     pub fn init_cache(&self) -> EvalCache {
         EvalCache {
