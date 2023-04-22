@@ -11,6 +11,7 @@ use crate::{
     circuit::{Circuit, CircuitRef, Gate},
     errors::CircuitParserError as Error,
 };
+use alloc::string::{String, ToString};
 use regex::{Captures, Regex};
 use std::{
     fs::File,
@@ -174,6 +175,10 @@ impl Circuit {
 #[cfg(test)]
 mod tests {
     use crate::{circuit::Circuit, classic::garble};
+    use alloc::{
+        string::{String, ToString},
+        vec,
+    };
 
     #[test]
     fn test_parser() {
@@ -206,10 +211,10 @@ mod tests {
 
     #[test]
     fn test_gc_eval() {
-        let mut circ = Circuit::parse("circuits/AES-non-expanded.txt").unwrap();
-        let (en, gc) = garble(&mut circ).unwrap();
+        let circ = Circuit::parse("circuits/AES-non-expanded.txt").unwrap();
+        let (en, gc) = garble(circ).unwrap();
         let gb = en.encode_garbler_inputs(&vec![0u16; 128]);
         let ev = en.encode_evaluator_inputs(&vec![0u16; 128]);
-        gc.eval(&mut circ, &gb, &ev).unwrap();
+        gc.eval(&gb, &ev).unwrap();
     }
 }

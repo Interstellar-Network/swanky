@@ -10,10 +10,11 @@ use crate::{
     errors::FancyError,
     fancy::{Fancy, FancyInput, FancyReveal, HasModulus},
 };
-use std::cmp::max;
+use alloc::vec::Vec;
+use core::cmp::max;
 
 /// Carries the depth of the computation.
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct DepthItem {
     modulus: u16,
     depth: usize,
@@ -40,8 +41,8 @@ impl From<FancyError> for DepthError {
     }
 }
 
-impl std::fmt::Display for DepthError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for DepthError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             Self::ProjUnsupported => writeln!(f, "Projection unsupported"),
             Self::Underlying(e) => writeln!(f, "Fancy error: {}", e),
@@ -61,8 +62,8 @@ pub struct DepthInformer {
     mul_depth: usize,
 }
 
-impl std::fmt::Display for DepthInformer {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for DepthInformer {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         writeln!(f, "computation info:")?;
         writeln!(f, "  inputs:             {:16}", self.ninputs)?;
         writeln!(f, "  constants:          {:16}", self.nconstants)?;

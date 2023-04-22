@@ -4,6 +4,7 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
+use crate::channel::GetBlockByIndex;
 use crate::{SyncChannel, TrackChannel};
 use std::{
     io::{BufReader, BufWriter},
@@ -15,6 +16,8 @@ pub type UnixChannel = SyncChannel<BufReader<UnixStream>, BufWriter<UnixStream>>
 
 /// A TrackChannel which uses UnixStreams.
 pub type TrackUnixChannel = TrackChannel<BufReader<UnixStream>, BufWriter<UnixStream>>;
+
+impl GetBlockByIndex for BufReader<UnixStream> {}
 
 /// Convenience function to create a pair of UnixChannels for local tests in `swanky`.
 pub fn unix_channel_pair() -> (UnixChannel, UnixChannel) {

@@ -6,6 +6,7 @@
 
 //! `fancy-garbling` provides boolean and arithmetic garbling capabilities.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![deny(clippy::all)]
 #![allow(
     clippy::cast_lossless,
@@ -15,11 +16,19 @@
     clippy::needless_range_loop
 )]
 #![allow(non_snake_case)]
+#![doc = include_str!("../README.md")]
 #![cfg_attr(feature = "nightly", feature(test))]
 #![cfg_attr(feature = "nightly", feature(stdsimd))]
-#![cfg_attr(feature = "nightly", feature(external_doc))]
-#![cfg_attr(feature = "nightly", doc(include = "../README.md"))]
-#![cfg_attr(feature = "nightly", deny(missing_docs))]
+// #![cfg_attr(feature = "nightly", deny(missing_docs))]
+
+extern crate alloc;
+
+#[cfg(all(not(feature = "std"), feature = "sgx"))]
+extern crate sgx_tstd as std;
+
+#[cfg(test)]
+#[macro_use]
+extern crate std;
 
 pub mod circuit;
 pub mod classic;
@@ -29,6 +38,7 @@ pub mod errors;
 mod fancy;
 mod garble;
 pub mod informer;
+#[cfg(feature = "parser")]
 mod parser;
 pub mod twopac;
 pub mod util;

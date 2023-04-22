@@ -3,14 +3,16 @@
 // This file is part of `scuttlebutt`.
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
-
 //! Defines a 512-bit value.
+
 use crate::Block;
-use std::{
-    arch::x86_64::*,
+use core::{
     convert::TryFrom,
     hash::{Hash, Hasher},
 };
+
+#[cfg(target_arch = "x86_64")]
+use core::arch::x86_64::*;
 
 /// A 512-bit value.
 #[derive(Clone, Copy)]
@@ -21,14 +23,14 @@ impl Block512 {
     #[inline]
     pub fn prefix(&self, n: usize) -> &[u8] {
         debug_assert!(n <= 64);
-        unsafe { std::slice::from_raw_parts(self as *const Self as *const u8, n) }
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, n) }
     }
 
     /// Return the first `n` bytes as mutable, where `n` must be `<= 64`.
     #[inline]
     pub fn prefix_mut(&mut self, n: usize) -> &mut [u8] {
         debug_assert!(n <= 64);
-        unsafe { std::slice::from_raw_parts_mut(self as *mut Self as *mut u8, n) }
+        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, n) }
     }
 }
 
@@ -44,7 +46,7 @@ impl AsRef<[u8]> for Block512 {
     }
 }
 
-impl std::ops::BitXor for Block512 {
+impl core::ops::BitXor for Block512 {
     type Output = Self;
 
     #[inline]
@@ -57,7 +59,7 @@ impl std::ops::BitXor for Block512 {
     }
 }
 
-impl std::ops::BitXorAssign for Block512 {
+impl core::ops::BitXorAssign for Block512 {
     fn bitxor_assign(&mut self, rhs: Self) {
         for (a, b) in self.0.iter_mut().zip(rhs.0.iter()) {
             *a ^= *b;
@@ -76,18 +78,19 @@ impl Default for Block512 {
     }
 }
 
-impl std::fmt::Debug for Block512 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Debug for Block512 {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{:#?}", self.0)
     }
 }
 
-impl std::fmt::Display for Block512 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Block512 {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{:#?}", self.0)
     }
 }
 
+#[cfg(feature = "cointoss")]
 impl rand::distributions::Distribution<Block512> for rand::distributions::Standard {
     #[inline]
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Block512 {
@@ -108,6 +111,7 @@ impl From<Block512> for [u32; 16] {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<Block512> for [__m128i; 4] {
     #[inline]
     fn from(m: Block512) -> [__m128i; 4] {
@@ -143,6 +147,7 @@ impl<'a> From<&'a mut Block512> for &'a mut [u8; 64] {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<[__m128i; 4]> for Block512 {
     #[inline]
     fn from(m: [__m128i; 4]) -> Block512 {
@@ -160,7 +165,7 @@ impl From<[Block; 4]> for Block512 {
 impl From<[u8; 64]> for Block512 {
     #[inline]
     fn from(m: [u8; 64]) -> Block512 {
-        unsafe { std::mem::transmute(m) }
+        unsafe { core::mem::transmute(m) }
         // unsafe { Self(*(&v as *const u8 as *const [Block; 4])) }
     }
 }
@@ -169,7 +174,7 @@ impl From<[u8; 64]> for Block512 {
 impl From<Block512> for __m512i {
     #[inline]
     fn from(m: Block512) -> __m512i {
-        unsafe { std::mem::transmute(m) }
+        unsafe { core::mem::transmute(m) }
         // unsafe { *(&m as *const _ as *const __m512i) }
     }
 }
@@ -189,7 +194,7 @@ impl Hash for Block512 {
 }
 
 impl Ord for Block512 {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
@@ -201,7 +206,7 @@ impl PartialEq for Block512 {
 }
 
 impl PartialOrd for Block512 {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.0.cmp(&other.0))
     }
 }

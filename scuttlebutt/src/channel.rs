@@ -4,27 +4,31 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
+#[cfg(feature = "hash_channel")]
 mod hash_channel;
+#[cfg(feature = "sync_channel")]
 mod sync_channel;
+#[cfg(feature = "track_channel")]
 mod track_channel;
-#[cfg(unix)]
+#[cfg(all(unix, feature = "unix_channel"))]
 mod unix_channel;
 
+#[cfg(feature = "hash_channel")]
 pub use hash_channel::HashChannel;
+#[cfg(feature = "sync_channel")]
 pub use sync_channel::SyncChannel;
+#[cfg(feature = "track_channel")]
 pub use track_channel::TrackChannel;
 
-#[cfg(unix)]
+#[cfg(all(unix, feature = "unix_channel"))]
 pub use unix_channel::{track_unix_channel_pair, unix_channel_pair, TrackUnixChannel, UnixChannel};
 
 use crate::{Block, Block512};
-#[cfg(feature = "curve25519-dalek")]
+use alloc::{rc::Rc, vec, vec::Vec};
+use core::cell::RefCell;
+#[cfg(feature = "curve25519")]
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
-use std::{
-    cell::RefCell,
-    io::{Read, Result, Write},
-    rc::Rc,
-};
+use std::io::{Read, Result, Write};
 
 /// A trait for managing I/O. `AbstractChannel`s are clonable, and provide basic
 /// read/write capabilities for both common and scuttlebutt-specific types.
@@ -34,11 +38,27 @@ pub trait AbstractChannel {
     /// Write a slice of `u8`s to the channel.
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<()>;
     /// Flush the channel.
-    fn flush(&mut self) -> Result<()>;
+    // fn flush(&mut self) -> Result<()>;
     /// Clone the channel.
-    fn clone(&self) -> Self
-    where
-        Self: Sized;
+    // fn clone(&self) -> Self
+    // where
+    // Self: Sized;
+
+    /// Typically this will call "self.reader.get_current_block"
+    fn get_current_block(&mut self) -> &Block {
+        todo!("AbstractChannel: get_current_block")
+    }
+
+    /// get_current_blocks
+    fn get_current_blocks(&mut self, _nb_blocks: usize) -> &[Block] {
+        todo!("AbstractChannel: get_current_blocks")
+    }
+
+    /// Contrary to "get_current_block", this simply move the "internal index"
+    fn next(&mut self) {
+        todo!("AbstractChannel: next")
+    }
+
     /// Read `nbytes` from the channel, and return it as a `Vec`.
     fn read_vec(&mut self, nbytes: usize) -> Result<Vec<u8>> {
         let mut data = vec![0; nbytes];
@@ -80,7 +100,7 @@ pub trait AbstractChannel {
     /// Write a `u16` to the channel.
     #[inline(always)]
     fn write_u16(&mut self, s: u16) -> Result<()> {
-        let data: [u8; 2] = unsafe { std::mem::transmute(s) };
+        let data: [u8; 2] = unsafe { core::mem::transmute(s) };
         self.write_bytes(&data)?;
         Ok(())
     }
@@ -90,14 +110,14 @@ pub trait AbstractChannel {
     fn read_u16(&mut self) -> Result<u16> {
         let mut data = [0u8; 2];
         self.read_bytes(&mut data)?;
-        let s = unsafe { std::mem::transmute(data) };
+        let s = unsafe { core::mem::transmute(data) };
         Ok(s)
     }
 
     /// Write a `u32` to the channel.
     #[inline(always)]
     fn write_u32(&mut self, s: u32) -> Result<()> {
-        let data: [u8; 4] = unsafe { std::mem::transmute(s) };
+        let data: [u8; 4] = unsafe { core::mem::transmute(s) };
         self.write_bytes(&data)?;
         Ok(())
     }
@@ -107,14 +127,14 @@ pub trait AbstractChannel {
     fn read_u32(&mut self) -> Result<u32> {
         let mut data = [0u8; 4];
         self.read_bytes(&mut data)?;
-        let s = unsafe { std::mem::transmute(data) };
+        let s = unsafe { core::mem::transmute(data) };
         Ok(s)
     }
 
     /// Write a `u64` to the channel.
     #[inline(always)]
     fn write_u64(&mut self, s: u64) -> Result<()> {
-        let data: [u8; 8] = unsafe { std::mem::transmute(s) };
+        let data: [u8; 8] = unsafe { core::mem::transmute(s) };
         self.write_bytes(&data)?;
         Ok(())
     }
@@ -124,14 +144,14 @@ pub trait AbstractChannel {
     fn read_u64(&mut self) -> Result<u64> {
         let mut data = [0u8; 8];
         self.read_bytes(&mut data)?;
-        let s = unsafe { std::mem::transmute(data) };
+        let s = unsafe { core::mem::transmute(data) };
         Ok(s)
     }
 
     /// Write a `usize` to the channel.
     #[inline(always)]
     fn write_usize(&mut self, s: usize) -> Result<()> {
-        let data: [u8; 8] = unsafe { std::mem::transmute(s) };
+        let data: [u8; 8] = unsafe { core::mem::transmute(s) };
         self.write_bytes(&data)?;
         Ok(())
     }
@@ -141,7 +161,7 @@ pub trait AbstractChannel {
     fn read_usize(&mut self) -> Result<usize> {
         let mut data = [0u8; 8];
         self.read_bytes(&mut data)?;
-        let s = unsafe { std::mem::transmute(data) };
+        let s = unsafe { core::mem::transmute(data) };
         Ok(s)
     }
 
@@ -184,7 +204,7 @@ pub trait AbstractChannel {
     }
 
     /// Write a `RistrettoPoint` to the channel.
-    #[cfg(feature = "curve25519-dalek")]
+    #[cfg(feature = "curve25519")]
     #[inline(always)]
     fn write_pt(&mut self, pt: &RistrettoPoint) -> Result<()> {
         self.write_bytes(pt.compress().as_bytes())?;
@@ -192,7 +212,7 @@ pub trait AbstractChannel {
     }
 
     /// Read a `RistrettoPoint` from the channel.
-    #[cfg(feature = "curve25519-dalek")]
+    #[cfg(feature = "curve25519")]
     #[inline(always)]
     fn read_pt(&mut self) -> Result<RistrettoPoint> {
         let mut data = [0u8; 32];
@@ -210,63 +230,118 @@ pub trait AbstractChannel {
     }
 }
 
-/// A standard read/write channel that implements `AbstractChannel`.
-pub struct Channel<R, W> {
-    reader: Rc<RefCell<R>>,
-    writer: Rc<RefCell<W>>,
+/// GetBlockByIndex
+pub trait GetBlockByIndex {
+    /// Return a ref to the "current block"
+    /// This is made to be used by classic.rs(ie nonstreaming), to avoid
+    /// going through the whole io::read->buffer->alloc new Block just to
+    /// iterate over the Channel's blocks.
+    fn get_current_block(&mut self) -> &Block {
+        todo!("GetBlockByIndex : get_current_block")
+    }
+
+    /// get_current_blocks
+    fn get_current_blocks(&mut self, nb_blocks: usize) -> &[Block] {
+        todo!("GetBlockByIndex : get_current_blocks")
+    }
+
+    /// next
+    fn next(&mut self) {
+        todo!("GetBlockByIndex: next")
+    }
 }
 
-impl<R: Read, W: Write> Channel<R, W> {
+/// A standard read/write channel that implements `AbstractChannel`.
+pub struct Channel<R, W>
+where
+    R: GetBlockByIndex,
+{
+    // reader: Rc<RefCell<R>>,
+    // writer: Rc<RefCell<W>>,
+    reader: R,
+    writer: W,
+}
+
+impl<R: Read + GetBlockByIndex, W: Write> Channel<R, W> {
     /// Make a new `Channel` from a `reader` and a `writer`.
     pub fn new(reader: R, writer: W) -> Self {
-        let reader = Rc::new(RefCell::new(reader));
-        let writer = Rc::new(RefCell::new(writer));
+        // let reader = Rc::new(RefCell::new(reader));
+        // let writer = Rc::new(RefCell::new(writer));
         Self { reader, writer }
     }
 
-    /// Return a reader object wrapped in `Rc<RefCell>`.
-    pub fn reader(self) -> Rc<RefCell<R>> {
-        self.reader
-    }
+    // /// Return a reader object wrapped in `Rc<RefCell>`.
+    // pub fn reader(self) -> Rc<RefCell<R>> {
+    //     self.reader
+    // }
+
+    // /// Return a reader object wrapped in `Rc<RefCell>`.
+    // pub fn reader_ptr(&self) -> *const R {
+    //     (*self.reader).as_ptr()
+    // }
+
+    // /// Return a writer object wrapped in `Rc<RefCell>`.
+    // pub fn writer(self) -> Rc<RefCell<W>> {
+    //     self.writer
+    // }
 
     /// Return a writer object wrapped in `Rc<RefCell>`.
-    pub fn writer(self) -> Rc<RefCell<W>> {
-        self.writer
+    pub fn writer_ref(&self) -> &W {
+        &self.writer
+    }
+
+    fn reader_mut(&mut self) -> &mut R {
+        // self.reader.as_ref().borrow().by_ref()
+        &mut self.reader
     }
 }
 
-impl<R: Read, W: Write> AbstractChannel for Channel<R, W> {
+impl<R: Read + GetBlockByIndex, W: Write> AbstractChannel for Channel<R, W> {
     #[inline(always)]
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
-        self.writer.borrow_mut().write_all(bytes)?;
+        self.writer.write_all(bytes)?;
         Ok(())
     }
 
     #[inline(always)]
     fn read_bytes(&mut self, mut bytes: &mut [u8]) -> Result<()> {
-        self.reader.borrow_mut().read_exact(&mut bytes)
+        self.reader.read_exact(&mut bytes)
     }
 
-    #[inline(always)]
-    fn flush(&mut self) -> Result<()> {
-        self.writer.borrow_mut().flush()
+    // #[inline(always)]
+    // fn flush(&mut self) -> Result<()> {
+    //     self.writer.borrow_mut().flush()
+    // }
+
+    // #[inline(always)]
+    // fn clone(&self) -> Self {
+    //     Self {
+    //         reader: self.reader.clone(),
+    //         writer: self.writer.clone(),
+    //     }
+    // }
+
+    fn get_current_block(&mut self) -> &Block {
+        self.reader_mut().get_current_block()
     }
 
-    #[inline(always)]
-    fn clone(&self) -> Self {
-        Self {
-            reader: self.reader.clone(),
-            writer: self.writer.clone(),
-        }
+    fn get_current_blocks(&mut self, nb_blocks: usize) -> &[Block] {
+        self.reader_mut().get_current_blocks(nb_blocks)
+    }
+
+    fn next(&mut self) {
+        self.reader_mut().next()
     }
 }
 
 /// Standard Read/Write channel built from a symmetric stream.
+#[cfg(feature = "sym_channel")]
 pub struct SymChannel<S> {
     stream: Rc<RefCell<S>>,
 }
 
-impl <S: Read + Write> SymChannel<S> {
+#[cfg(feature = "sym_channel")]
+impl<S: Read + Write> SymChannel<S> {
     /// Make a new `Channel` from a stream.
     pub fn new(stream: S) -> Self {
         let stream = Rc::new(RefCell::new(stream));
@@ -274,6 +349,7 @@ impl <S: Read + Write> SymChannel<S> {
     }
 }
 
+#[cfg(feature = "sym_channel")]
 impl<S: Read + Write> AbstractChannel for SymChannel<S> {
     #[inline(always)]
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
@@ -286,15 +362,15 @@ impl<S: Read + Write> AbstractChannel for SymChannel<S> {
         self.stream.borrow_mut().read_exact(&mut bytes)
     }
 
-    #[inline(always)]
-    fn flush(&mut self) -> Result<()> {
-        self.stream.borrow_mut().flush()
-    }
+    // #[inline(always)]
+    // fn flush(&mut self) -> Result<()> {
+    //     self.stream.borrow_mut().flush()
+    // }
 
-    #[inline(always)]
-    fn clone(&self) -> Self {
-        Self {
-            stream: self.stream.clone(),
-        }
-    }
+    // #[inline(always)]
+    // fn clone(&self) -> Self {
+    //     Self {
+    //         stream: self.stream.clone(),
+    //     }
+    // }
 }

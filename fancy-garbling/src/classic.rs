@@ -14,23 +14,56 @@ use crate::{
     garble::{Evaluator, Garbler},
     wire::Wire,
 };
+use alloc::{vec, vec::Vec};
 use itertools::Itertools;
-use scuttlebutt::{AbstractChannel, AesRng, Block, Channel};
-use std::{collections::HashMap, convert::TryInto, rc::Rc};
+use scuttlebutt::{channel::GetBlockByIndex, AesRng, Block, Channel};
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    convert::TryInto,
+    hash::BuildHasherDefault,
+};
+
+type MyBuildHasher = BuildHasherDefault<DefaultHasher>;
 
 /// Static evaluator for a circuit, created by the `garble` function.
 ///
 /// Uses `Evaluator` under the hood to actually implement the evaluation.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 pub struct GarbledCircuit {
     blocks: Vec<Block>,
+    // TODO(interstellar) can we remove Circuit; and possibly refactor output_refs/cache/etc
+    //  Should we remove Circuit? Does it leak critical data to the client?
+    circuit: Circuit,
+}
+
+pub struct EvalCache {
+    /// Only needed for "eval_with_prealloc"
+    pub(crate) cache: Vec<Wire>,
+    pub(crate) temp_blocks: Vec<Block>,
+    // default hasher:
+    // ---- tests::bench_garble_display_message_640x360_2digits_42 stdout ----
+    // eval_times : [65, 60, 56, 55, 56, 57, 58, 58, 57, 59]
+    // eval_datas : 10
+    // -----------------------------------------------------------------------
+    // twox-hash = "1.6.3"
+    // use twox_hash::XxHash64;
+    // BuildHasherDefault<XxHash64>
+    // ---- tests::bench_garble_display_message_640x360_2digits_42 stdout ----
+    // eval_times : [82, 67, 66, 67, 66, 64, 66, 67, 65, 65]
+    // eval_datas : 10
+    // -----------------------------------------------------------------------
+    // fnv = "1.0.7"
+    // ---- tests::bench_garble_display_message_640x360_2digits_42 stdout ----
+    // eval_times : [77, 64, 65, 66, 63, 68, 66, 68, 67, 64]
+    // eval_datas : 10
+    pub(crate) hashes_cache: HashMap<(Wire, usize, u16), Block, MyBuildHasher>,
 }
 
 impl GarbledCircuit {
     /// Create a new object from a vector of garbled gates and constant wires.
-    pub fn new(blocks: Vec<Block>) -> Self {
-        GarbledCircuit { blocks }
+    pub fn new(blocks: Vec<Block>, circuit: Circuit) -> Self {
+        GarbledCircuit { blocks, circuit }
     }
 
     /// The number of garbled rows and constant wires in the garbled circuit.
@@ -41,27 +74,94 @@ impl GarbledCircuit {
     /// Evaluate the garbled circuit.
     pub fn eval(
         &self,
-        c: &Circuit,
         garbler_inputs: &[Wire],
         evaluator_inputs: &[Wire],
     ) -> Result<Vec<u16>, EvaluatorError> {
-        let channel = Channel::new(GarbledReader::new(&self.blocks), GarbledWriter::new(None));
+        let reader = GarbledReader::new(&self.blocks);
+        let channel = Channel::new(reader, GarbledWriter::new(None));
+
         let mut evaluator = Evaluator::new(channel);
-        let outputs = c.eval(&mut evaluator, garbler_inputs, evaluator_inputs)?;
+
+        let outputs = self
+            .circuit
+            .eval(&mut evaluator, &garbler_inputs, &evaluator_inputs)?;
+
         Ok(outputs.expect("evaluator outputs always are Some(u16)"))
+    }
+
+    /// Evaluate the garbled circuit.
+    pub fn eval_with_prealloc(
+        &self,
+        eval_cache: &mut EvalCache,
+        garbler_inputs: &[Wire],
+        evaluator_inputs: &[Wire],
+        outputs: &mut Vec<Option<u16>>,
+    ) -> Result<(), EvaluatorError> {
+        let reader = GarbledReader::new(&self.blocks);
+        let channel = Channel::new(reader, GarbledWriter::new(None));
+
+        let mut evaluator = Evaluator::new(channel);
+
+        self.circuit.eval_with_prealloc(
+            &mut evaluator,
+            &garbler_inputs,
+            &evaluator_inputs,
+            outputs,
+            // TODO!!! expect("cache not init! MUST call init_cache()")
+            &mut eval_cache.cache,
+            &mut eval_cache.temp_blocks,
+            &mut eval_cache.hashes_cache,
+        )?;
+
+        // eval_prepare_with_prealloc(
+        //     &mut evaluator,
+        //     garbler_inputs,
+        //     evaluator_inputs,
+        //     &self.circuit.gates,
+        //     &self.circuit.gate_moduli,
+        //     &mut self.cache,
+        // )?;
+
+        // eval_eval_with_prealloc(
+        //     &mut self.cache,
+        //     &mut evaluator,
+        //     &self.circuit.output_refs,
+        //     outputs,
+        //     &mut self.temp_blocks,
+        //     &mut self.hashes_cache,
+        // )?;
+
+        Ok(())
+    }
+
+    // TODO(interstellar) remove?
+    pub fn init_cache(&self) -> EvalCache {
+        EvalCache {
+            cache: vec![Wire::default(); self.circuit.gates.len()],
+            temp_blocks: vec![Block::default(); 2],
+            // TODO(interstellar)!!! try different hashers; the default "provide resistance against HashDoS attacks"
+            //  but this MAY not be needed
+            // NOTE: typically there are around self.circuit.gates.len() / 2 entries in "hashes_cache" after "fn eval_with_prealloc"
+            // TODO(interstellar) bne with capacity: self.circuit.gates.len()
+            // self.hashes_cache = HashMap::with_capacity_and_hasher(
+            //     self.circuit.gates.len(),
+            //     BuildHasherDefault::from(RandomXxHashBuilder64::default()),
+            // );
+            hashes_cache: HashMap::default(),
+        }
     }
 }
 
 /// Garble a circuit without streaming.
-pub fn garble(c: &Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
+pub fn garble(c: Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
     let channel = Channel::new(
         GarbledReader::new(&[]),
         GarbledWriter::new(Some(c.num_nonfree_gates)),
     );
-    let channel_ = channel.clone();
+    // let channel_ = channel.clone();
 
     let rng = AesRng::new();
-    let mut garbler = Garbler::new(channel_, rng);
+    let mut garbler = Garbler::new(channel, rng);
 
     // get input wires, ignoring encoded values
     let gb_inps = (0..c.num_garbler_inputs())
@@ -82,14 +182,16 @@ pub fn garble(c: &Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
 
     c.eval(&mut garbler, &gb_inps, &ev_inps)?;
 
-    let en = Encoder::new(gb_inps, ev_inps, garbler.get_deltas());
+    // TODO(interstellar) remove deltas clone? or deltas altogether? are they used?
+    let en = Encoder::new(gb_inps, ev_inps, garbler.get_deltas_ref().clone());
 
-    let gc = GarbledCircuit::new(
-        Rc::try_unwrap(channel.writer())
-            .unwrap()
-            .into_inner()
-            .blocks,
-    );
+    // let blocks = Rc::try_unwrap(channel.writer())
+    //     .unwrap()
+    //     .into_inner()
+    //     .blocks;
+    let blocks = garbler.get_channel_ref().writer_ref().blocks.clone();
+
+    let gc = GarbledCircuit::new(blocks, c);
 
     Ok((en, gc))
 }
@@ -97,12 +199,54 @@ pub fn garble(c: &Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
 ////////////////////////////////////////////////////////////////////////////////
 // Encoder
 
+/// cf https://stackoverflow.com/a/64949136/5312991
+/// NOTE: this thread points to https://crates.io/crates/vectorize
+/// but unfortunately this crate depends on full "serde", which means it fails under no_std/sgx...
+pub mod vectorize {
+    use alloc::vec::Vec;
+    use core::iter::FromIterator;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<'a, T, K, V, S>(target: T, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: IntoIterator<Item = (&'a K, &'a V)>,
+        K: Serialize + 'a,
+        V: Serialize + 'a,
+    {
+        let container: Vec<_> = target.into_iter().collect();
+        serde::Serialize::serialize(&container, ser)
+    }
+
+    pub fn deserialize<'de, T, K, V, D>(des: D) -> Result<T, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: FromIterator<(K, V)>,
+        K: Deserialize<'de>,
+        V: Deserialize<'de>,
+    {
+        let container: Vec<_> = serde::Deserialize::deserialize(des)?;
+        Ok(T::from_iter(container.into_iter()))
+    }
+}
+
 /// Encode inputs statically.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 pub struct Encoder {
+    /// (interstellar) garbler_inputs: are only needed server side b/c they are serialized ENCODED
+    /// and THEN sent to the client.
+    /// So for simplicity we skip serializing them
+    /// TODO(interstellar) find a better way; maybe https://serde.rs/remote-derive.html ?
+    #[serde(skip)]
     garbler_inputs: Vec<Wire>,
     evaluator_inputs: Vec<Wire>,
+    // cf https://stackoverflow.com/a/64949136/5312991
+    // without serde_with we get: eg "the trait `Serialize` is not implemented for `HashMap<u16, wire::Wire>`"
+    // #[serde_as(as = "Vec<(DisplayFromStr,_)>")]
+    // #[serde(flatten)]
+    // #[serde(with = "::serde_with::rust::maps_duplicate_key_is_error")]
+    #[serde(with = "vectorize")]
     deltas: HashMap<u16, Wire>,
 }
 
@@ -187,13 +331,33 @@ impl std::io::Read for GarbledReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         assert_eq!(buf.len() % 16, 0);
         for data in buf.chunks_mut(16) {
-            let block: [u8; 16] = self.blocks[self.index].into();
-            for (a, b) in data.iter_mut().zip(block.iter()) {
-                *a = *b;
-            }
+            // TODO(interstellar) can we improve this?
+            // let block: [u8; 16] = self.blocks[self.index].into();
+            // for (a, b) in data.iter_mut().zip(block.iter()) {
+            //     *a = *b;
+            // }
+            data.copy_from_slice(self.blocks[self.index].as_ref());
             self.index += 1;
         }
         Ok(buf.len())
+    }
+}
+
+impl GetBlockByIndex for GarbledReader {
+    fn get_current_block(&mut self) -> &Block {
+        let b = &self.blocks[self.index];
+        self.index += 1;
+        b
+    }
+
+    fn next(&mut self) {
+        self.index += 1;
+    }
+
+    fn get_current_blocks(&mut self, nb_blocks: usize) -> &[Block] {
+        let blocks = &self.blocks[self.index..self.index + nb_blocks];
+        self.index += nb_blocks;
+        blocks
     }
 }
 

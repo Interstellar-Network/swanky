@@ -12,8 +12,9 @@ use crate::{
     fancy::bundle::{Bundle, BundleGadgets},
     util,
 };
+use alloc::{string::ToString, vec, vec::Vec};
+use core::ops::Deref;
 use itertools::Itertools;
-use std::ops::Deref;
 
 /// Bundle which is explicitly CRT-representation.
 #[derive(Clone)]

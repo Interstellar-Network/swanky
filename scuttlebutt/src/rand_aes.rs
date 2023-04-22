@@ -7,8 +7,14 @@
 //! Fixed-key AES random number generator.
 
 use crate::{Aes128, Block};
-use rand::{CryptoRng, Error, Rng, RngCore, SeedableRng};
-use rand_core::block::{BlockRng, BlockRngCore};
+use rand::Rng;
+use rand_chacha::{rand_core::SeedableRng, ChaChaRng};
+use rand_core::{
+    block::{BlockRng, BlockRngCore},
+    CryptoRng,
+    Error,
+    RngCore,
+};
 
 /// Implementation of a random number generator based on fixed-key AES.
 ///
@@ -56,7 +62,11 @@ impl AesRng {
     /// `rand::random`.
     #[inline]
     pub fn new() -> Self {
-        let seed = rand::random::<Block>();
+        // let seed = rand::random::<Block>();
+        // https://github.com/paritytech/substrate/blob/master/frame/society/src/lib.rs#L1420
+        // TODO is ChaChaRng secure? (or at least good enough)
+        let mut rng = ChaChaRng::from_entropy();
+        let seed: Block = rng.gen();
         AesRng::from_seed(seed)
     }
 
@@ -82,8 +92,8 @@ pub struct AesRngCore {
     state: u128,
 }
 
-impl std::fmt::Debug for AesRngCore {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Debug for AesRngCore {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "AesRngCore {{}}")
     }
 }
@@ -99,7 +109,7 @@ impl BlockRngCore for AesRngCore {
     fn generate(&mut self, results: &mut Self::Results) {
         // We can't just cast this because the alignment of [u32; 32] may not
         // match that of [Block; 8].
-        let mut ms: [Block; 8] = unsafe { std::mem::transmute(*results) };
+        let mut ms: [Block; 8] = unsafe { core::mem::transmute(*results) };
         ms[0] = Block::from(self.state);
         self.state += 1;
         ms[1] = Block::from(self.state);
@@ -142,6 +152,14 @@ impl From<AesRngCore> for AesRng {
     #[inline]
     fn from(core: AesRngCore) -> Self {
         AesRng(BlockRng::new(core))
+    }
+}
+
+#[cfg(feature = "rand_aes")]
+impl rand::distributions::Distribution<Block> for rand::distributions::Standard {
+    #[inline]
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Block {
+        Block::from(rng.gen::<u128>())
     }
 }
 

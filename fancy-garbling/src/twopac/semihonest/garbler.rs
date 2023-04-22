@@ -5,6 +5,8 @@
 // See LICENSE for licensing information.
 
 use crate::{errors::TwopacError, Fancy, FancyInput, FancyReveal, Garbler as Gb, Wire};
+use alloc::vec::Vec;
+use core::ops::{Deref, DerefMut};
 use ocelot::ot::Sender as OtSender;
 use rand::{CryptoRng, Rng, SeedableRng};
 use scuttlebutt::{AbstractChannel, Block, SemiHonest};
@@ -12,19 +14,18 @@ use scuttlebutt::{AbstractChannel, Block, SemiHonest};
 /// Semi-honest garbler.
 pub struct Garbler<C, RNG, OT> {
     garbler: Gb<C, RNG>,
-    channel: C,
     ot: OT,
     rng: RNG,
 }
 
-impl<C, OT, RNG> std::ops::Deref for Garbler<C, RNG, OT> {
+impl<C, OT, RNG> Deref for Garbler<C, RNG, OT> {
     type Target = Gb<C, RNG>;
     fn deref(&self) -> &Self::Target {
         &self.garbler
     }
 }
 
-impl<C, OT, RNG> std::ops::DerefMut for Garbler<C, RNG, OT> {
+impl<C, OT, RNG> DerefMut for Garbler<C, RNG, OT> {
     fn deref_mut(&mut self) -> &mut Gb<C, RNG> {
         &mut self.garbler
     }
@@ -40,19 +41,14 @@ impl<
     pub fn new(mut channel: C, mut rng: RNG) -> Result<Self, TwopacError> {
         let ot = OT::init(&mut channel, &mut rng)?;
 
-        let garbler = Gb::new(channel.clone(), RNG::from_seed(rng.gen()));
-        Ok(Garbler {
-            garbler,
-            channel,
-            ot,
-            rng,
-        })
+        let garbler = Gb::new(channel, RNG::from_seed(rng.gen()));
+        Ok(Garbler { garbler, ot, rng })
     }
 
-    /// Get a reference to the internal channel.
-    pub fn get_channel(&mut self) -> &mut C {
-        &mut self.channel
-    }
+    // /// Get a reference to the internal channel.
+    // pub fn get_channel(&mut self) -> &mut C {
+    //     &mut self.channel
+    // }
 
     fn _evaluator_input(&mut self, delta: &Wire, q: u16) -> (Wire, Vec<(Block, Block)>) {
         let len = f32::from(q).log(2.0).ceil() as u16;
@@ -81,7 +77,7 @@ impl<
     fn encode(&mut self, val: u16, modulus: u16) -> Result<Wire, TwopacError> {
         let (mine, theirs) = self.garbler.encode_wire(val, modulus);
         self.garbler.send_wire(&theirs)?;
-        self.channel.flush()?;
+        // self.channel.flush()?;
         Ok(mine)
     }
 
@@ -95,7 +91,7 @@ impl<
                 Ok(mine)
             })
             .collect();
-        self.channel.flush()?;
+        // self.channel.flush()?;
         ws
     }
 
@@ -113,7 +109,8 @@ impl<
                 inputs.push(i);
             }
         }
-        self.ot.send(&mut self.channel, &inputs, &mut self.rng)?;
+        self.ot
+            .send(self.garbler.get_channel_mut(), &inputs, &mut self.rng)?;
         Ok(wires)
     }
 }

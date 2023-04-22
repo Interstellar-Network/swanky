@@ -10,8 +10,9 @@ use crate::{
     util::{output_tweak, tweak, tweak2, RngExt},
     wire::Wire,
 };
+use alloc::{boxed::Box, vec, vec::Vec};
 use rand::{CryptoRng, RngCore};
-use scuttlebutt::{AbstractChannel, Block};
+use scuttlebutt::{AbstractChannel, AesHash, Block};
 use std::collections::HashMap;
 
 /// Streams garbled circuit ciphertexts through a callback.
@@ -21,6 +22,7 @@ pub struct Garbler<C, RNG> {
     current_output: usize,
     current_gate: usize,
     rng: RNG,
+    aes_hash: AesHash,
 }
 
 impl<C: AbstractChannel, RNG: CryptoRng + RngCore> Garbler<C, RNG> {
@@ -32,17 +34,31 @@ impl<C: AbstractChannel, RNG: CryptoRng + RngCore> Garbler<C, RNG> {
             current_gate: 0,
             current_output: 0,
             rng,
+            aes_hash: AesHash::new_with_fixed_key(),
         }
     }
 
+    /// get_channel_ref
+    pub fn get_channel_ref(&self) -> &C {
+        &self.channel
+    }
+
+    /// get_channel_mut
+    pub fn get_channel_mut(&mut self) -> &mut C {
+        &mut self.channel
+    }
+
+    // FIXME the original version required serde_json::from_reader, but that requires "std"
+    // which is an issue b/c we want this lib to work in no_std/sgx env
+    // But this fn is not used so...
     #[cfg(feature = "serde1")]
     /// Load pre-chosen deltas from a file
     pub fn load_deltas(&mut self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let f = std::fs::File::open(filename)?;
-        let reader = std::io::BufReader::new(f);
-        let deltas: HashMap<u16, Wire> = serde_json::from_reader(reader)?;
-        self.deltas.extend(deltas.into_iter());
-        Ok(())
+        todo!("load_deltas")
+        // let buf = std::fs::read_to_string(filename)?;
+        // let deltas: HashMap<u16, Wire> = serde_json::from_slice(buf.as_bytes())?;
+        // self.deltas.extend(deltas.into_iter());
+        // Ok(())
     }
 
     /// The current non-free gate index of the garbling computation
@@ -75,6 +91,11 @@ impl<C: AbstractChannel, RNG: CryptoRng + RngCore> Garbler<C, RNG> {
     /// This is useful for reusing wires in multiple garbled circuit instances.
     pub fn get_deltas(self) -> HashMap<u16, Wire> {
         self.deltas
+    }
+
+    /// get_deltas_ref
+    pub fn get_deltas_ref(&self) -> &HashMap<u16, Wire> {
+        &self.deltas
     }
 
     /// Send a wire over the established channel.
@@ -141,7 +162,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> FancyReveal for Garbler<C, RN
         // The evaluator needs our cooperation in order to see the output.
         // Hence, we call output() ourselves.
         self.output(x)?;
-        self.channel.flush()?;
+        // self.channel.flush()?;
         let val = self.channel.read_u16()?;
         Ok(val)
     }
@@ -208,7 +229,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
                     B_.plus_eq(&Db);
                 }
                 let new_color = ((r + b) % q) as u128;
-                let ct = (u128::from(B_.hash(t)) & 0xFFFF) ^ new_color;
+                let ct = (u128::from(B_.hash(t, &self.aes_hash)) & 0xFFFF) ^ new_color;
                 minitable[B_.color() as usize] = ct;
             }
 
@@ -227,14 +248,14 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
         let alpha = (q - A.color()) % q; // alpha = -A.color
         let X = A
             .plus(&D.cmul(alpha))
-            .hashback(g, q)
+            .hashback(g, q, &self.aes_hash)
             .plus_mov(&D.cmul(alpha * r % q));
 
         // Y = H(B + bD) + (b + r)A such that b + B.color == 0
         let beta = (qb - B.color()) % qb;
         let Y = B
             .plus(&Db.cmul(beta))
-            .hashback(g, q)
+            .hashback(g, q, &self.aes_hash)
             .plus_mov(&A.cmul((beta + r) % q));
 
         let mut precomp = Vec::with_capacity(q as usize);
@@ -257,7 +278,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
             // G = H(A+aD) ^ X+a(-r)D = H(A+aD) ^ X-arD
             if A_.color() != 0 {
                 gate[A_.color() as usize - 1] =
-                    A_.hash(g) ^ precomp[((q - (a * r % q)) % q) as usize];
+                    A_.hash(g, &self.aes_hash) ^ precomp[((q - (a * r % q)) % q) as usize];
             }
         }
 
@@ -281,7 +302,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
             // G = H(B+bD) + Y-(b+r)A
             if B_.color() != 0 {
                 gate[q as usize - 1 + B_.color() as usize - 1] =
-                    B_.hash(g) ^ precomp[((q - ((b + r) % q)) % q) as usize];
+                    B_.hash(g, &self.aes_hash) ^ precomp[((q - ((b + r) % q)) % q) as usize];
             }
         }
 
@@ -307,7 +328,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
         // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
         let C = A
             .plus(&Din.cmul((q_in - tao) % q_in))
-            .hashback(g, q_out)
+            .hashback(g, q_out, &self.aes_hash)
             .plus_mov(&Dout.cmul((q_out - tt[((q_in - tao) % q_in) as usize]) % q_out));
 
         // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
@@ -334,7 +355,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
                 continue;
             }
 
-            let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
+            let ct = A_.hash(g, &self.aes_hash) ^ C_precomputed[tt[x as usize] as usize];
             gate[ix - 1] = ct;
         }
 
@@ -349,7 +370,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
         let i = self.current_output();
         let D = self.delta(q);
         for k in 0..q {
-            let block = X.plus(&D.cmul(k)).hash(output_tweak(i, k));
+            let block = X.plus(&D.cmul(k)).hash(output_tweak(i, k), &self.aes_hash);
             self.channel.write_block(&block)?;
         }
         Ok(None)

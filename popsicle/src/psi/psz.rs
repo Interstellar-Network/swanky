@@ -12,9 +12,9 @@
 
 use crate::{
     cuckoo::{compute_masksize, CuckooHash},
-    utils,
-    Error,
+    utils, Error,
 };
+use alloc::vec::Vec;
 use itertools::Itertools;
 use ocelot::oprf::{self, Receiver as OprfReceiver, Sender as OprfSender};
 use rand::{seq::SliceRandom, CryptoRng, Rng, RngCore};
@@ -74,7 +74,7 @@ impl Sender {
                 channel.write_bytes(&encoded.prefix(masksize))?;
             }
         }
-        channel.flush()?;
+        // channel.flush()?;
         Ok(())
     }
 
@@ -120,7 +120,7 @@ impl Sender {
                 channel.write_bytes(ct.as_ref())?;
             }
         }
-        channel.flush()?;
+        // channel.flush()?;
         Ok(payloads)
     }
 }
@@ -248,7 +248,7 @@ impl Receiver {
 
         // Send cuckoo hash info to sender.
         channel.write_usize(nbins)?;
-        channel.flush()?;
+        // channel.flush()?;
 
         // Extract inputs from cuckoo hash.
         let oprf_inputs = tbl

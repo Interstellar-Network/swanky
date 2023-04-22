@@ -6,6 +6,8 @@
 
 #![allow(clippy::unreadable_literal)]
 
+use alloc::{vec, vec::Vec};
+
 use crate::util;
 
 pub fn lookup(q: u16) -> Vec<u128> {

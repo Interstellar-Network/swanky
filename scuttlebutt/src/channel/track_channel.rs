@@ -10,16 +10,18 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-/// A channel for tracking the number of bits read/written.
-pub struct TrackChannel<R, W>(Arc<Mutex<InternalTrackChannel<R, W>>>);
+use super::GetBlockByIndex;
 
-struct InternalTrackChannel<R, W> {
+/// A channel for tracking the number of bits read/written.
+pub struct TrackChannel<R: GetBlockByIndex, W>(Arc<Mutex<InternalTrackChannel<R, W>>>);
+
+struct InternalTrackChannel<R: GetBlockByIndex, W> {
     channel: Channel<R, W>,
     nbits_read: usize,
     nbits_written: usize,
 }
 
-impl<R: Read, W: Write> TrackChannel<R, W> {
+impl<R: Read + GetBlockByIndex, W: Write> TrackChannel<R, W> {
     /// Make a new `TrackChannel` from a `reader` and a `writer`.
     pub fn new(reader: R, writer: W) -> Self {
         let channel = Channel::new(reader, writer);
@@ -70,12 +72,12 @@ impl<R: Read, W: Write> TrackChannel<R, W> {
     }
 }
 
-impl<R: Read, W: Write> AbstractChannel for TrackChannel<R, W> {
+impl<R: Read + GetBlockByIndex, W: Write> AbstractChannel for TrackChannel<R, W> {
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         let mut int = self.0.lock().unwrap();
         int.nbits_written += bytes.len() * 8;
         int.channel.write_bytes(bytes)?;
-        int.channel.flush()?;
+        // int.channel.flush()?;
         Ok(())
     }
 
@@ -85,11 +87,11 @@ impl<R: Read, W: Write> AbstractChannel for TrackChannel<R, W> {
         int.channel.read_bytes(&mut bytes)
     }
 
-    fn flush(&mut self) -> Result<()> {
-        self.0.lock().unwrap().channel.flush()
-    }
+    // fn flush(&mut self) -> Result<()> {
+    //     self.0.lock().unwrap().channel.flush()
+    // }
 
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
+    // fn clone(&self) -> Self {
+    //     Self(self.0.clone())
+    // }
 }

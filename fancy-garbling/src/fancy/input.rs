@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::util;
+use alloc::{string::ToString, vec};
 use itertools::Itertools;
 
 /// Convenience functions for encoding input to Fancy objects.

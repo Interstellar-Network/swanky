@@ -11,6 +11,7 @@ use crate::{
     errors::Error,
     ot::{Receiver as OtReceiver, Sender as OtSender},
 };
+use alloc::vec::Vec;
 use rand::{CryptoRng, Rng};
 use scuttlebutt::{AbstractChannel, Block};
 
@@ -44,13 +45,13 @@ impl OtSender for Sender {
             let m = if b { m.1 } else { m.0 };
             channel.write_block(&m)?;
         }
-        channel.flush()?;
+        // channel.flush()?;
         Ok(())
     }
 }
 
-impl std::fmt::Display for Sender {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Sender {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Dummy Sender")
     }
 }
@@ -74,7 +75,7 @@ impl OtReceiver for Receiver {
         for b in inputs.iter() {
             channel.write_bool(*b)?;
         }
-        channel.flush()?;
+        // channel.flush()?;
         let mut out = Vec::with_capacity(inputs.len());
         for _ in 0..inputs.len() {
             let m = channel.read_block()?;
@@ -84,8 +85,8 @@ impl OtReceiver for Receiver {
     }
 }
 
-impl std::fmt::Display for Receiver {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Receiver {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Dummy Receiver")
     }
 }

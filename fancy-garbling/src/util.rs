@@ -8,12 +8,11 @@
 //!
 //! Note: all number representations in this library are little-endian.
 
-use crate::Wire;
-#[cfg(feature = "nightly")]
+use alloc::vec::Vec;
+#[cfg(all(feature = "nightly", target_arch = "x86_64"))]
 use core::arch::x86_64::*;
 use itertools::Itertools;
 use scuttlebutt::Block;
-use std::collections::HashMap;
 
 ////////////////////////////////////////////////////////////////////////////////
 // tweak functions for garbling
@@ -87,7 +86,7 @@ pub fn base_q_add_eq(xs: &mut [u16], ys: &[u16], q: u16) {
 
 /// Convert `x` into base `q`, building a vector of length `n`.
 fn as_base_q(x: u128, q: u16, n: usize) -> Vec<u16> {
-    let ms = std::iter::repeat(q).take(n).collect_vec();
+    let ms = core::iter::repeat(q).take(n).collect_vec();
     as_mixed_radix(x, &ms)
 }
 
@@ -365,14 +364,14 @@ pub fn is_power_of_2(x: u16) -> bool {
 }
 
 // Generate deltas for GC
-pub fn generate_deltas(primes: &[u16]) -> HashMap<u16, Wire> {
-    let mut deltas = HashMap::new();
-    let mut rng = rand::thread_rng();
-    for q in primes {
-        deltas.insert(*q, Wire::rand_delta(&mut rng, *q));
-    }
-    deltas
-}
+// pub fn generate_deltas(primes: &[u16]) -> HashMap<u16, Wire> {
+//     let mut deltas = HashMap::new();
+//     let mut rng = rand::thread_rng();
+//     for q in primes {
+//         deltas.insert(*q, Wire::rand_delta(&mut rng, *q));
+//     }
+//     deltas
+// }
 
 /// Extra Rng functionality, useful for `fancy-garbling`.
 pub trait RngExt: rand::Rng + Sized {
@@ -458,6 +457,7 @@ impl<R: rand::Rng + Sized> RngExt for R {}
 mod tests {
     use super::*;
     use crate::util::RngExt;
+    use alloc::vec::Vec;
     use rand::thread_rng;
 
     #[test]

@@ -13,12 +13,13 @@ use crate::{
     errors::{DummyError, FancyError},
     fancy::{Fancy, FancyInput, FancyReveal, HasModulus},
 };
+use alloc::vec::Vec;
 
 /// Simple struct that performs the fancy computation over `u16`.
 pub struct Dummy {}
 
 /// Wrapper around `u16`.
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct DummyVal {
     val: u16,
     modulus: u16,

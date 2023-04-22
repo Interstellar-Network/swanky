@@ -10,6 +10,8 @@
 //! create projections.
 
 use crate::errors::FancyError;
+use alloc::vec::Vec;
+use core::fmt::{Debug, Display};
 use itertools::Itertools;
 
 mod binary;
@@ -30,13 +32,15 @@ pub trait HasModulus {
     fn modulus(&self) -> u16;
 }
 
+pub struct FancyEvalCache {}
+
 /// DSL for the basic computations supported by `fancy-garbling`.
 pub trait Fancy {
     /// The underlying wire datatype created by an object implementing `Fancy`.
-    type Item: Clone + HasModulus;
+    type Item: Clone + HasModulus + Default;
 
     /// Errors which may be thrown by the users of Fancy.
-    type Error: std::fmt::Debug + std::fmt::Display + std::convert::From<FancyError>;
+    type Error: Debug + Display + From<FancyError>;
 
     /// Create a constant `x` with modulus `q`.
     fn constant(&mut self, x: u16, q: u16) -> Result<Self::Item, Self::Error>;
@@ -66,6 +70,12 @@ pub trait Fancy {
     /// Process this wire as output. Some `Fancy` implementors dont actually *return*
     /// output, but they need to be involved in the process, so they can return `None`.
     fn output(&mut self, x: &Self::Item) -> Result<Option<u16>, Self::Error>;
+
+    // fn output_with_prealloc<H: BuildHasher>(
+    //     &mut self,
+    //     x: &Self::Item,
+    //     eval_cache: &mut FancyEvalCache,
+    // ) -> Result<Option<u16>, Self::Error>
 
     ////////////////////////////////////////////////////////////////////////////////
     // Functions built on top of basic fancy operations.
@@ -260,6 +270,8 @@ pub trait Fancy {
     }
 
     /// Output a slice of wires.
+    // TODO(interstellar) outputs with prealloc? is this copying???
+    // TODO(interstellar) what is "outputs" vs "output"; is this what is calling the alloc in Callgrind profiling?
     fn outputs(&mut self, xs: &[Self::Item]) -> Result<Option<Vec<u16>>, Self::Error> {
         let mut zs = Vec::with_capacity(xs.len());
         for x in xs.iter() {

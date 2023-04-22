@@ -8,14 +8,16 @@ use crate::{AbstractChannel, Channel};
 use sha2::{Digest, Sha256};
 use std::io::{Read, Result, Write};
 
+use super::GetBlockByIndex;
+
 /// An instantiation of the `AbstractChannel` trait which computes a running
 /// hash of all bytes read from and written to the channel.
-pub struct HashChannel<R, W> {
+pub struct HashChannel<R: GetBlockByIndex, W> {
     channel: Channel<R, W>,
     hash: Sha256,
 }
 
-impl<R: Read, W: Write> HashChannel<R, W> {
+impl<R: Read + GetBlockByIndex, W: Write> HashChannel<R, W> {
     /// Make a new `HashChannel` from a `reader` and a `writer`.
     pub fn new(reader: R, writer: W) -> Self {
         let channel = Channel::new(reader, writer);
@@ -31,7 +33,7 @@ impl<R: Read, W: Write> HashChannel<R, W> {
     }
 }
 
-impl<R: Read, W: Write> AbstractChannel for HashChannel<R, W> {
+impl<R: Read + GetBlockByIndex, W: Write> AbstractChannel for HashChannel<R, W> {
     #[inline]
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         self.hash.input(bytes);
@@ -45,16 +47,16 @@ impl<R: Read, W: Write> AbstractChannel for HashChannel<R, W> {
         Ok(())
     }
 
-    #[inline]
-    fn flush(&mut self) -> Result<()> {
-        self.channel.flush()
-    }
+    // #[inline]
+    // fn flush(&mut self) -> Result<()> {
+    //     self.channel.flush()
+    // }
 
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            channel: self.channel.clone(),
-            hash: self.hash.clone(),
-        }
-    }
+    // #[inline]
+    // fn clone(&self) -> Self {
+    //     Self {
+    //         channel: self.channel.clone(),
+    //         hash: self.hash.clone(),
+    //     }
+    // }
 }

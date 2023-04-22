@@ -39,7 +39,7 @@ impl<R: Read, W: Write> AbstractChannel for SyncChannel<R, W> {
     #[inline(always)]
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         self.writer.lock().unwrap().write_all(bytes)?;
-        self.flush().unwrap();
+        // self.flush().unwrap();
         Ok(())
     }
 
@@ -48,16 +48,16 @@ impl<R: Read, W: Write> AbstractChannel for SyncChannel<R, W> {
         self.reader.lock().unwrap().read_exact(&mut bytes)
     }
 
-    #[inline(always)]
-    fn flush(&mut self) -> Result<()> {
-        self.writer.lock().unwrap().flush()
-    }
+    // #[inline(always)]
+    // fn flush(&mut self) -> Result<()> {
+    //     self.writer.lock().unwrap().flush()
+    // }
 
-    #[inline(always)]
-    fn clone(&self) -> Self {
-        Self {
-            reader: self.reader.clone(),
-            writer: self.writer.clone(),
-        }
-    }
+    // #[inline(always)]
+    // fn clone(&self) -> Self {
+    //     Self {
+    //         reader: self.reader.clone(),
+    //         writer: self.writer.clone(),
+    //     }
+    // }
 }

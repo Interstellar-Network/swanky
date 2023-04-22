@@ -6,25 +6,32 @@
 
 //! Defines a block as a 128-bit value, and implements block-related functions.
 
-#[cfg(feature = "curve25519-dalek")]
+#[cfg(feature = "curve25519")]
 use crate::Aes256;
-#[cfg(feature = "curve25519-dalek")]
+use core::hash::{Hash, Hasher};
+#[cfg(feature = "curve25519")]
 use curve25519_dalek::ristretto::RistrettoPoint;
-use std::{
-    arch::x86_64::*,
-    hash::{Hash, Hasher},
-};
+
+#[cfg(target_arch = "x86_64")]
+use core::arch::x86_64::*;
 
 /// A 128-bit chunk.
 #[derive(Clone, Copy)]
-pub struct Block(pub __m128i);
+#[repr(transparent)]
+pub struct Block(
+    #[cfg(not(target_arch = "x86_64"))] pub u128,
+    #[cfg(target_arch = "x86_64")] pub __m128i,
+);
 
+#[cfg(target_arch = "x86_64")]
 union __U128 {
     vector: __m128i,
     bytes: u128,
 }
 
+#[cfg(target_arch = "x86_64")]
 const ONE: __m128i = unsafe { (__U128 { bytes: 1 }).vector };
+#[cfg(target_arch = "x86_64")]
 const ONES: __m128i = unsafe {
     (__U128 {
         bytes: 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF,
@@ -48,6 +55,7 @@ impl Block {
     ///
     /// This code is adapted from the EMP toolkit's implementation.
     #[inline]
+    #[cfg(target_arch = "x86_64")]
     pub fn clmul(self, rhs: Self) -> (Self, Self) {
         unsafe {
             let x = self.0;
@@ -68,7 +76,8 @@ impl Block {
     /// Hash an elliptic curve point `pt` and tweak `tweak`.
     ///
     /// Computes the hash by computing `E_{pt}(tweak)`, where `E` is AES-256.
-    #[cfg(feature = "curve25519-dalek")]
+    // TODO(interstellar) this SHOULD NOT be here; it should be into aes256.rs
+    #[cfg(feature = "curve25519")]
     #[inline]
     pub fn hash_pt(tweak: u128, pt: &RistrettoPoint) -> Self {
         let k = pt.compress();
@@ -78,16 +87,29 @@ impl Block {
 
     /// Return the least significant bit.
     #[inline]
+    #[cfg(target_arch = "x86_64")]
     pub fn lsb(&self) -> bool {
         unsafe { _mm_extract_epi8(_mm_and_si128(self.0, ONE), 0) == 1 }
     }
+    #[inline]
+    #[cfg(not(target_arch = "x86_64"))]
+    pub fn lsb(&self) -> bool {
+        (self.0 & 1) == 1
+    }
     /// Set the least significant bit.
     #[inline]
+    #[cfg(target_arch = "x86_64")]
     pub fn set_lsb(&self) -> Block {
         unsafe { Block(_mm_or_si128(self.0, ONE)) }
     }
+    #[inline]
+    #[cfg(not(target_arch = "x86_64"))]
+    pub fn set_lsb(&self) -> Block {
+        Block(self.0 | 1u128)
+    }
     /// Flip all bits.
     #[inline]
+    #[cfg(target_arch = "x86_64")]
     pub fn flip(&self) -> Self {
         unsafe { Block(_mm_xor_si128(self.0, ONES)) }
     }
@@ -107,16 +129,26 @@ impl Block {
 impl Default for Block {
     #[inline]
     fn default() -> Self {
-        unsafe { Block(_mm_setzero_si128()) }
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            Block(_mm_setzero_si128())
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        Block(0)
     }
 }
 
 impl PartialEq for Block {
     #[inline]
     fn eq(&self, other: &Block) -> bool {
+        #[cfg(target_arch = "x86_64")]
         unsafe {
             let neq = _mm_xor_si128(self.0, other.0);
             _mm_test_all_zeros(neq, neq) != 0
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        {
+            self.0 == other.0
         }
     }
 }
@@ -124,13 +156,13 @@ impl PartialEq for Block {
 impl Eq for Block {}
 
 impl Ord for Block {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         u128::from(*self).cmp(&u128::from(*other))
     }
 }
 
 impl PartialOrd for Block {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(u128::from(*self).cmp(&u128::from(*other)))
     }
 }
@@ -149,7 +181,8 @@ impl AsMut<[u8]> for Block {
     }
 }
 
-impl std::ops::BitAnd for Block {
+#[cfg(target_arch = "x86_64")]
+impl core::ops::BitAnd for Block {
     type Output = Block;
     #[inline]
     fn bitand(self, rhs: Self) -> Self {
@@ -157,14 +190,16 @@ impl std::ops::BitAnd for Block {
     }
 }
 
-impl std::ops::BitAndAssign for Block {
+#[cfg(target_arch = "x86_64")]
+impl core::ops::BitAndAssign for Block {
     #[inline]
     fn bitand_assign(&mut self, rhs: Self) {
         unsafe { self.0 = _mm_and_si128(self.0, rhs.0) }
     }
 }
 
-impl std::ops::BitOr for Block {
+#[cfg(target_arch = "x86_64")]
+impl core::ops::BitOr for Block {
     type Output = Block;
     #[inline]
     fn bitor(self, rhs: Self) -> Self {
@@ -172,52 +207,60 @@ impl std::ops::BitOr for Block {
     }
 }
 
-impl std::ops::BitOrAssign for Block {
+#[cfg(target_arch = "x86_64")]
+impl core::ops::BitOrAssign for Block {
     #[inline]
     fn bitor_assign(&mut self, rhs: Self) {
         unsafe { self.0 = _mm_or_si128(self.0, rhs.0) }
     }
 }
 
-impl std::ops::BitXor for Block {
+impl core::ops::BitXor for Block {
     type Output = Block;
     #[inline]
-    fn bitxor(self, rhs: Self) -> Self {
-        unsafe { Block(_mm_xor_si128(self.0, rhs.0)) }
+    fn bitxor(self, rhs: Block) -> Block {
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            Block(_mm_xor_si128(self.0, rhs.0))
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        Block(self.0 ^ rhs.0)
     }
 }
 
-impl std::ops::BitXorAssign for Block {
+#[cfg(target_arch = "x86_64")]
+impl core::ops::BitXorAssign for Block {
     #[inline]
     fn bitxor_assign(&mut self, rhs: Self) {
         unsafe { self.0 = _mm_xor_si128(self.0, rhs.0) }
     }
 }
 
-impl std::fmt::Debug for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let block: [u8; 16] = (*self).into();
-        for byte in block.iter() {
-            write!(f, "{:02X}", byte)?;
-        }
-        Ok(())
-    }
-}
-
-impl std::fmt::Display for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let block: [u8; 16] = (*self).into();
-        for byte in block.iter() {
-            write!(f, "{:02X}", byte)?;
-        }
-        Ok(())
-    }
-}
-
-impl rand::distributions::Distribution<Block> for rand::distributions::Standard {
+#[cfg(not(target_arch = "x86_64"))]
+impl core::ops::BitXorAssign for Block {
     #[inline]
-    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Block {
-        Block::from(rng.gen::<u128>())
+    fn bitxor_assign(&mut self, rhs: Self) {
+        self.0 = self.0 ^ rhs.0;
+    }
+}
+
+impl core::fmt::Debug for Block {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let block: [u8; 16] = (*self).into();
+        for byte in block.iter() {
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
+    }
+}
+
+impl core::fmt::Display for Block {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let block: [u8; 16] = (*self).into();
+        for byte in block.iter() {
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
     }
 }
 
@@ -228,15 +271,23 @@ impl From<Block> for u128 {
     }
 }
 
+impl From<&Block> for u128 {
+    #[inline]
+    fn from(m: &Block) -> u128 {
+        unsafe { *(m as *const _ as *const u128) }
+    }
+}
+
 impl From<u128> for Block {
     #[inline]
     fn from(m: u128) -> Self {
-        unsafe { std::mem::transmute(m) }
+        unsafe { core::mem::transmute(m) }
         // XXX: the below doesn't work due to pointer-alignment issues.
         // unsafe { *(&m as *const _ as *const Block) }
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<Block> for __m128i {
     #[inline]
     fn from(m: Block) -> __m128i {
@@ -244,6 +295,7 @@ impl From<Block> for __m128i {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<__m128i> for Block {
     #[inline]
     fn from(m: __m128i) -> Self {
@@ -261,7 +313,7 @@ impl From<Block> for [u8; 16] {
 impl From<[u8; 16]> for Block {
     #[inline]
     fn from(m: [u8; 16]) -> Self {
-        unsafe { std::mem::transmute(m) }
+        unsafe { core::mem::transmute(m) }
         // XXX: the below doesn't work due to pointer-alignment issues.
         // unsafe { *(&m as *const _ as *const Block) }
     }
@@ -270,7 +322,7 @@ impl From<[u8; 16]> for Block {
 impl From<[u16; 8]> for Block {
     #[inline]
     fn from(m: [u16; 8]) -> Self {
-        unsafe { std::mem::transmute(m) }
+        unsafe { core::mem::transmute(m) }
     }
 }
 
@@ -280,6 +332,14 @@ impl From<Block> for [u32; 4] {
         unsafe { *(&m as *const _ as *const [u32; 4]) }
     }
 }
+
+// DO NOT use this! it FAILS catastrophically!
+// impl From<&[u8]> for Block {
+//     #[inline]
+//     fn from(m: &[u8]) -> Self {
+//         unsafe { std::mem::transmute(m) }
+//     }
+// }
 
 impl Hash for Block {
     fn hash<H: Hasher>(&self, state: &mut H) {

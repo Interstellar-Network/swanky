@@ -13,8 +13,9 @@ use crate::{
     },
     util,
 };
+use alloc::{string::ToString, vec, vec::Vec};
+use core::ops::{Deref, DerefMut};
 use itertools::Itertools;
-use std::ops::{Deref, DerefMut};
 
 /// Bundle which is explicitly binary representation.
 #[derive(Clone)]

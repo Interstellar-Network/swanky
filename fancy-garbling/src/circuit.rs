@@ -12,11 +12,14 @@ use crate::{
     errors::{CircuitBuilderError, DummyError, FancyError},
     fancy::{BinaryBundle, CrtBundle, Fancy, FancyInput, HasModulus},
 };
+use alloc::{vec, vec::Vec};
+use core::hash::BuildHasher;
 use itertools::Itertools;
-use std::collections::HashMap;
+use scuttlebutt::Block;
+use std::{collections::HashMap, println};
 
 /// The index and modulus of a gate in a circuit.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 pub struct CircuitRef {
     pub(crate) ix: usize,
@@ -54,7 +57,8 @@ pub struct Circuit {
 /// = None`, then we use the gate index as the output wire index.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
-pub(crate) enum Gate {
+pub enum Gate {
+    /// GarblerInput
     GarblerInput {
         id: usize,
     },
@@ -115,6 +119,156 @@ impl std::fmt::Display for Gate {
     }
 }
 
+fn eval_prepare<F: Fancy>(
+    f: &mut F,
+    garbler_inputs: &[F::Item],
+    evaluator_inputs: &[F::Item],
+    gates: &[Gate],
+    gate_moduli: &[u16],
+) -> Result<Vec<F::Item>, F::Error> {
+    let mut cache: Vec<F::Item> = vec![F::Item::default(); gates.len()];
+    let mut temp_blocks = vec![Block::default(); 2];
+
+    eval_prepare_with_prealloc(
+        f,
+        garbler_inputs,
+        evaluator_inputs,
+        gates,
+        gate_moduli,
+        &mut cache,
+        &mut temp_blocks,
+    )?;
+
+    Ok(cache)
+}
+
+pub fn eval_prepare_with_prealloc<F: Fancy>(
+    f: &mut F,
+    garbler_inputs: &[F::Item],
+    evaluator_inputs: &[F::Item],
+    gates: &[Gate],
+    gate_moduli: &[u16],
+    cache: &mut Vec<F::Item>,
+    temp_blocks: &mut Vec<Block>,
+) -> Result<(), F::Error> {
+    debug_assert_eq!(cache.len(), gates.len(), "cache is NOT the correct size!");
+    for (i, gate) in gates.iter().enumerate() {
+        let q = gate_moduli[i];
+        let (zref_, val) = match *gate {
+            Gate::GarblerInput { id } => (None, garbler_inputs[id].clone()),
+            Gate::EvaluatorInput { id } => {
+                assert!(
+                    id < evaluator_inputs.len(),
+                    "id={} ev_inps.len()={}",
+                    id,
+                    evaluator_inputs.len()
+                );
+                (None, evaluator_inputs[id].clone())
+            }
+            Gate::Constant { val } => (None, f.constant(val, q)?),
+            Gate::Add { xref, yref, out } => (
+                out,
+                f.add(
+                    cache
+                        .get(xref.ix)
+                        .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
+                    cache
+                        .get(yref.ix)
+                        .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
+                )?,
+            ),
+            Gate::Sub { xref, yref, out } => (
+                out,
+                f.sub(
+                    cache
+                        .get(xref.ix)
+                        .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
+                    cache
+                        .get(yref.ix)
+                        .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
+                )?,
+            ),
+            Gate::Cmul { xref, c, out } => (
+                out,
+                f.cmul(
+                    cache
+                        .get(xref.ix)
+                        .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
+                    c,
+                )?,
+            ),
+            Gate::Proj {
+                xref, ref tt, out, ..
+            } => (
+                out,
+                f.proj(
+                    cache
+                        .get(xref.ix)
+                        .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
+                    q,
+                    Some(tt.to_vec()),
+                )?,
+            ),
+            Gate::Mul {
+                xref, yref, out, ..
+            } => (
+                out,
+                f.mul(
+                    cache
+                        .get(xref.ix)
+                        .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
+                    cache
+                        .get(yref.ix)
+                        .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
+                )?,
+            ),
+        };
+        cache[zref_.unwrap_or(i)] = val;
+    }
+
+    Ok(())
+}
+
+fn eval_eval<F: Fancy>(
+    cache: &[F::Item],
+    f: &mut F,
+    output_refs: &[CircuitRef],
+) -> Result<Option<Vec<u16>>, F::Error> {
+    let mut outputs = vec![None; output_refs.len()];
+    let mut temp_blocks = vec![Block::default(); 2];
+    let mut hashes_cache: HashMap<(F::Item, usize, u16), Block> = HashMap::new();
+    eval_eval_with_prealloc(
+        cache,
+        f,
+        output_refs,
+        &mut outputs,
+        &mut temp_blocks,
+        &mut hashes_cache,
+    )?;
+    Ok(outputs.into_iter().collect())
+}
+
+pub fn eval_eval_with_prealloc<F: Fancy, H: BuildHasher>(
+    cache: &[F::Item],
+    f: &mut F,
+    output_refs: &[CircuitRef],
+    outputs: &mut Vec<Option<u16>>,
+    temp_blocks: &mut Vec<Block>,
+    hashes_cache: &mut HashMap<(F::Item, usize, u16), Block, H>,
+) -> Result<(), F::Error> {
+    debug_assert_eq!(output_refs.len(), outputs.len(), "outputs NOT init!");
+    for (i, r) in output_refs.iter().enumerate() {
+        // TODO(interstellar) debug_assert_eq!(cache[i], Some(r), "bad index!");
+        let r = cache
+            .get(r.ix)
+            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?;
+        let out = f.output(r)?;
+        outputs[i] = out;
+    }
+
+    Ok(())
+}
+
 impl Circuit {
     /// Make a new `Circuit` object.
     pub fn new(ngates: Option<usize>) -> Circuit {
@@ -137,89 +291,47 @@ impl Circuit {
         garbler_inputs: &[F::Item],
         evaluator_inputs: &[F::Item],
     ) -> Result<Option<Vec<u16>>, F::Error> {
-        let mut cache: Vec<Option<F::Item>> = vec![None; self.gates.len()];
-        for (i, gate) in self.gates.iter().enumerate() {
-            let q = self.modulus(i);
-            let (zref_, val) = match *gate {
-                Gate::GarblerInput { id } => (None, garbler_inputs[id].clone()),
-                Gate::EvaluatorInput { id } => {
-                    assert!(
-                        id < evaluator_inputs.len(),
-                        "id={} ev_inps.len()={}",
-                        id,
-                        evaluator_inputs.len()
-                    );
-                    (None, evaluator_inputs[id].clone())
-                }
-                Gate::Constant { val } => (None, f.constant(val, q)?),
-                Gate::Add { xref, yref, out } => (
-                    out,
-                    f.add(
-                        cache[xref.ix]
-                            .as_ref()
-                            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                        cache[yref.ix]
-                            .as_ref()
-                            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                    )?,
-                ),
-                Gate::Sub { xref, yref, out } => (
-                    out,
-                    f.sub(
-                        cache[xref.ix]
-                            .as_ref()
-                            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                        cache[yref.ix]
-                            .as_ref()
-                            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                    )?,
-                ),
-                Gate::Cmul { xref, c, out } => (
-                    out,
-                    f.cmul(
-                        cache[xref.ix]
-                            .as_ref()
-                            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                        c,
-                    )?,
-                ),
-                Gate::Proj {
-                    xref, ref tt, out, ..
-                } => (
-                    out,
-                    f.proj(
-                        cache[xref.ix]
-                            .as_ref()
-                            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                        q,
-                        Some(tt.to_vec()),
-                    )?,
-                ),
-                Gate::Mul {
-                    xref, yref, out, ..
-                } => (
-                    out,
-                    f.mul(
-                        cache[xref.ix]
-                            .as_ref()
-                            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                        cache[yref.ix]
-                            .as_ref()
-                            .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
-                    )?,
-                ),
-            };
-            cache[zref_.unwrap_or(i)] = Some(val);
-        }
-        let mut outputs = Vec::with_capacity(self.output_refs.len());
-        for r in self.output_refs.iter() {
-            let r = cache[r.ix]
-                .as_ref()
-                .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?;
-            let out = f.output(r)?;
-            outputs.push(out);
-        }
-        Ok(outputs.into_iter().collect())
+        let cache = eval_prepare(
+            f,
+            garbler_inputs,
+            evaluator_inputs,
+            &self.gates,
+            &self.gate_moduli,
+        )?;
+
+        eval_eval(&cache, f, &self.output_refs)
+    }
+
+    /// fn eval: version with preallocated outputs
+    /// This is the client-side use case, where we call eval() inside a render loop
+    pub fn eval_with_prealloc<F: Fancy, H: BuildHasher>(
+        &self,
+        f: &mut F,
+        garbler_inputs: &[F::Item],
+        evaluator_inputs: &[F::Item],
+        outputs: &mut Vec<Option<u16>>,
+        cache: &mut Vec<F::Item>,
+        temp_blocks: &mut Vec<Block>,
+        hashes_cache: &mut HashMap<(F::Item, usize, u16), Block, H>,
+    ) -> Result<(), F::Error> {
+        eval_prepare_with_prealloc(
+            f,
+            garbler_inputs,
+            evaluator_inputs,
+            &self.gates,
+            &self.gate_moduli,
+            cache,
+            temp_blocks,
+        )?;
+
+        eval_eval_with_prealloc(
+            cache,
+            f,
+            &self.output_refs,
+            outputs,
+            temp_blocks,
+            hashes_cache,
+        )
     }
 
     /// Evaluate the circuit in plaintext.
@@ -410,7 +522,7 @@ impl Fancy for CircuitBuilder {
     }
 
     fn output(&mut self, xref: &CircuitRef) -> Result<Option<u16>, Self::Error> {
-        println!("output called");
+        // println!("output called");
         self.circ.output_refs.push(*xref);
         Ok(None)
     }
@@ -661,6 +773,7 @@ mod bundle {
     };
     use itertools::Itertools;
     use rand::thread_rng;
+    use std::println;
 
     #[test] // bundle input and output {{{
     fn test_bundle_input_output() {

@@ -8,6 +8,7 @@ use crate::{
     errors::FancyError,
     fancy::{Fancy, HasModulus},
 };
+use alloc::{vec, vec::Vec};
 use itertools::Itertools;
 use std::ops::Index;
 

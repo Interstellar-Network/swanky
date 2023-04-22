@@ -7,13 +7,14 @@
 //! Low-level operations on wire-labels, the basic building block of garbled circuits.
 
 use crate::{fancy::HasModulus, util};
+use alloc::{vec, vec::Vec};
 use rand::{CryptoRng, Rng, RngCore};
-use scuttlebutt::{Block, AES_HASH};
+use scuttlebutt::{AesHash, Block};
 
 mod npaths_tab;
 
 /// The core wire-label type.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 pub enum Wire {
     /// Representation of a `mod-2` wire.
@@ -49,7 +50,7 @@ pub enum Wire {
     },
 }
 
-impl std::default::Default for Wire {
+impl Default for Wire {
     fn default() -> Self {
         Wire::Mod2 {
             val: Block::default(),
@@ -192,6 +193,24 @@ impl Wire {
         }
     }
 
+    /// as_mut_block
+    pub fn as_mut_block(&mut self) -> &mut Block {
+        match self {
+            Wire::Mod2 { val } => &mut *val,
+            Wire::Mod3 { lsb, msb } => todo!(),
+            Wire::ModN { q, ref ds } => todo!(),
+        }
+    }
+
+    /// as_ref_block
+    pub fn as_ref_block(&mut self) -> &Block {
+        match self {
+            Wire::Mod2 { val } => &*val,
+            Wire::Mod3 { lsb, msb } => todo!(),
+            Wire::ModN { q, ref ds } => todo!(),
+        }
+    }
+
     /// The zero wire with modulus `q`.
     pub fn zero(q: u16) -> Self {
         match q {
@@ -326,7 +345,7 @@ impl Wire {
                 2 => {
                     // Multiplication by two is the same as negation in `mod-3`,
                     // which just involves swapping `lsb` and `msb`.
-                    std::mem::swap(lsb, msb);
+                    core::mem::swap(lsb, msb);
                 }
                 c => {
                     self.cmul_eq(c % 3);
@@ -359,7 +378,7 @@ impl Wire {
             }
             Wire::Mod3 { lsb, msb } => {
                 // Negation just involves swapping `lsb` and `msb`.
-                std::mem::swap(lsb, msb);
+                core::mem::swap(lsb, msb);
             }
             Wire::ModN { q, ds } => {
                 ds.iter_mut().for_each(|d| {
@@ -422,16 +441,17 @@ impl Wire {
     /// Compute the hash of this wire.
     ///
     /// Uses fixed-key AES.
+    // TODO(interstellar) add overload "inplace"
     #[inline(never)]
-    pub fn hash(&self, tweak: Block) -> Block {
-        AES_HASH.tccr_hash(tweak, self.as_block())
+    pub fn hash(&self, tweak: Block, aes_hash: &AesHash) -> Block {
+        aes_hash.tccr_hash(tweak, self.as_block())
     }
 
     /// Compute the hash of this wire, converting the result back to a wire.
     ///
     /// Uses fixed-key AES.
-    pub fn hashback(&self, tweak: Block, q: u16) -> Wire {
-        let block = self.hash(tweak);
+    pub fn hashback(&self, tweak: Block, q: u16, aes_hash: &AesHash) -> Wire {
+        let block = self.hash(tweak, aes_hash);
         if q == 3 {
             // We have to convert `block` into a valid `Mod3` encoding. We do
             // this by computing the `Mod3` digits using `_unrank`, and then map
@@ -487,10 +507,11 @@ mod tests {
     #[test]
     fn hash() {
         let mut rng = thread_rng();
+        let aes_hash = AesHash::new_with_fixed_key();
         for _ in 0..100 {
             let q = 2 + (rng.gen_u16() % 110);
             let x = Wire::rand(&mut rng, q);
-            let y = x.hashback(Block::from(1u128), q);
+            let y = x.hashback(Block::from(1u128), q, &aes_hash);
             assert!(x != y);
             match y {
                 Wire::Mod2 { val } => assert!(u128::from(val) > 0),
@@ -600,13 +621,22 @@ mod tests {
         let hashes = crossbeam::scope(|scope| {
             let hs = ws
                 .iter()
-                .map(|w| scope.spawn(move |_| w.hash(Block::default())))
+                .map(|w| {
+                    scope.spawn(move |_| {
+                        let aes_hash = AesHash::new_with_fixed_key();
+                        w.hash(Block::default(), &aes_hash)
+                    })
+                })
                 .collect_vec();
             hs.into_iter().map(|h| h.join().unwrap()).collect_vec()
         })
         .unwrap();
 
-        let should_be = ws.iter().map(|w| w.hash(Block::default())).collect_vec();
+        let aes_hash = AesHash::new_with_fixed_key();
+        let should_be = ws
+            .iter()
+            .map(|w| w.hash(Block::default(), &aes_hash))
+            .collect_vec();
 
         assert_eq!(hashes, should_be);
     }

@@ -6,6 +6,8 @@
 
 //! Useful utility functions.
 
+use alloc::{vec, vec::Vec};
+
 /// Pack a bit slice into bytes.
 pub fn pack_bits(bits: &[bool]) -> Vec<u8> {
     let nbytes = (bits.len() as f64 / 8.0).ceil() as usize;

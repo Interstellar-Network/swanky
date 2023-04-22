@@ -7,24 +7,32 @@ readme = "README.md"
 description = "A library for oblivious transfer protocols"
 categories = ["cryptography"]
 keywords = ["cryptography", "oblivious-transfer", "OT"]
-edition = "2018"
+edition = "2021"
 publish = false
-build = "build.rs"
 autoexamples = true
 
 [lib]
 
 [features]
-nightly = ["curve25519-dalek/avx2_backend", "rand/nightly", "scuttlebutt/nightly"]
+default = ["std"]
+# TODO(interstellar) CHECK that it compiles when enabled;
+ot = ["scuttlebutt/cointoss","curve25519-dalek", "scuttlebutt/curve25519"]
+# TODO(interstellar) CHECK that it compiles when enabled;
+nightly = ["curve25519-dalek/avx2_backend", "scuttlebutt/nightly"]
+# TODO(interstellar) CHECK that it compiles when enabled;
+hash_aes = ["scuttlebutt/hash_aes"]
+# TODO(interstellar) CHECK that it compiles when enabled;
+utils_transpose = ["transpose"]
+sgx = ["scuttlebutt/sgx", "sgx_tstd"]
+std = ["scuttlebutt/std"]
 
 [dependencies]
-curve25519-dalek = { version = "2", features = ["std"] }
+curve25519-dalek = { version = "2", features = ["std"], optional = true }
 libc = "0.2"
-rand = "0.7"
-scuttlebutt = { path = "../scuttlebutt", features = ["curve25519-dalek"] }
-
-[build-dependencies]
-cc = "1.0"
+rand = { version = "0.8.5", default-features = false }
+scuttlebutt = { path = "../scuttlebutt", default-features = false }
+transpose = { version =  "0.2.2", optional = true }
+sgx_tstd = { branch = "master", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
 
 [dev-dependencies]
 criterion = "0.2"
@@ -40,3 +48,8 @@ harness = false
 [[example]]
 name = "kmprt"
 harness = false
+
+[[example]]
+name = "kkrt"
+harness = false
+required-features = ["ot"]

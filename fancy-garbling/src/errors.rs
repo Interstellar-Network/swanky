@@ -6,8 +6,8 @@
 
 //! Errors that may be output by this library.
 
-use scuttlebutt::Block;
-use std::fmt::{self, Display, Formatter};
+use alloc::string::{String, ToString};
+use core::fmt::{self, Display, Formatter};
 
 /// Errors that may occur when using the `Fancy` trait. These errors are
 /// API-usage errors, such as trying to add two `Items` with different moduli.
@@ -170,11 +170,11 @@ impl From<std::io::Error> for EvaluatorError {
     }
 }
 
-impl From<std::sync::mpsc::RecvError> for EvaluatorError {
-    fn from(e: std::sync::mpsc::RecvError) -> Self {
-        EvaluatorError::CommunicationError(e.to_string())
-    }
-}
+// impl From<std::sync::mpsc::RecvError> for EvaluatorError {
+//     fn from(e: std::sync::mpsc::RecvError) -> Self {
+//         EvaluatorError::CommunicationError(e.to_string())
+//     }
+// }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Garbler error
@@ -215,11 +215,11 @@ impl From<std::io::Error> for GarblerError {
     }
 }
 
-impl From<std::sync::mpsc::SendError<Vec<Block>>> for GarblerError {
-    fn from(e: std::sync::mpsc::SendError<Vec<Block>>) -> Self {
-        GarblerError::CommunicationError(e.to_string())
-    }
-}
+// impl From<std::sync::mpsc::SendError<Vec<Block>>> for GarblerError {
+//     fn from(e: std::sync::mpsc::SendError<Vec<Block>>) -> Self {
+//         GarblerError::CommunicationError(e.to_string())
+//     }
+// }
 
 ////////////////////////////////////////////////////////////////////////////////
 // circuit builder error
@@ -249,6 +249,7 @@ pub enum CircuitParserError {
     /// An I/O error occurred.
     IoError(std::io::Error),
     /// A regular expression parsing error occurred.
+    #[cfg(feature = "parser")]
     RegexError(regex::Error),
     /// An error occurred parsing an integer.
     ParseIntError,
@@ -262,6 +263,7 @@ impl Display for CircuitParserError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             CircuitParserError::IoError(e) => write!(f, "io error: {}", e),
+            #[cfg(feature = "parser")]
             CircuitParserError::RegexError(e) => write!(f, "regex error: {}", e),
             CircuitParserError::ParseIntError => write!(f, "unable to parse integer"),
             CircuitParserError::ParseLineError(s) => write!(f, "unable to parse line '{}'", s),
@@ -270,20 +272,22 @@ impl Display for CircuitParserError {
     }
 }
 
+#[cfg(feature = "parser")]
 impl From<std::io::Error> for CircuitParserError {
     fn from(e: std::io::Error) -> CircuitParserError {
         CircuitParserError::IoError(e)
     }
 }
 
+#[cfg(feature = "parser")]
 impl From<regex::Error> for CircuitParserError {
     fn from(e: regex::Error) -> CircuitParserError {
         CircuitParserError::RegexError(e)
     }
 }
 
-impl From<std::num::ParseIntError> for CircuitParserError {
-    fn from(_: std::num::ParseIntError) -> CircuitParserError {
+impl From<core::num::ParseIntError> for CircuitParserError {
+    fn from(_: core::num::ParseIntError) -> CircuitParserError {
         CircuitParserError::ParseIntError
     }
 }
@@ -338,8 +342,8 @@ impl From<FancyError> for TwopacError {
     }
 }
 
-impl std::fmt::Display for TwopacError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for TwopacError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             TwopacError::IoError(e) => write!(f, "IO error: {}", e),
             TwopacError::OtError(e) => write!(f, "oblivious transfer error: {}", e),
